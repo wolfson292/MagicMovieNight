@@ -41,7 +41,8 @@ public class TmdbClient(
             ? string.Empty
             : isShow ? $"&first_air_date_year={year}" : $"&year={year}";
 
-        var url = $"/{path}?query={HttpUtility.UrlEncode(title)}{yearParam}&include_adult=false";
+        // No leading slash: with a leading slash the base path ("/3") is discarded.
+        var url = $"{path}?query={HttpUtility.UrlEncode(title)}{yearParam}&include_adult=false";
 
         try
         {
@@ -77,7 +78,7 @@ public class TmdbClient(
 
         var isShow = kind is MediaKind.Show or MediaKind.Episode;
         var path = isShow ? "tv" : "movie";
-        var url = $"/{path}/{tmdbId}?append_to_response=credits,watch/providers,external_ids";
+        var url = $"{path}/{tmdbId}?append_to_response=credits,watch/providers,external_ids";
 
         try
         {

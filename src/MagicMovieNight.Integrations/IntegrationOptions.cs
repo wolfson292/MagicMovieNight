@@ -39,7 +39,13 @@ public class TmdbOptions
     /// <summary>v4 read access token (Bearer) from https://www.themoviedb.org/settings/api.</summary>
     public string? ApiToken { get; set; }
 
-    public string BaseUrl { get; set; } = "https://api.themoviedb.org/3";
+    /// <summary>
+    /// Must keep the trailing slash. HttpClient resolves relative URIs per RFC 3986,
+    /// where a path segment without a trailing slash is treated as a file and replaced —
+    /// so "https://api.themoviedb.org/3" + "search/movie" silently becomes
+    /// ".../search/movie" with the "/3" dropped, and every call 404s.
+    /// </summary>
+    public string BaseUrl { get; set; } = "https://api.themoviedb.org/3/";
 
     public string ImageBaseUrl { get; set; } = "https://image.tmdb.org/t/p/w500";
 

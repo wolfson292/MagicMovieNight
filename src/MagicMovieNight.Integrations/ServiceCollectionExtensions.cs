@@ -46,7 +46,11 @@ public static class ServiceCollectionExtensions
         services.AddHttpClient<TmdbClient>((sp, http) =>
         {
             var options = sp.GetRequiredService<IOptions<TmdbOptions>>().Value;
-            http.BaseAddress = new Uri(options.BaseUrl);
+
+            // Belt and braces: a base URL configured without the trailing slash would
+            // silently drop the "/3" from every request.
+            var baseUrl = options.BaseUrl.EndsWith('/') ? options.BaseUrl : options.BaseUrl + "/";
+            http.BaseAddress = new Uri(baseUrl);
             http.DefaultRequestHeaders.Add("Accept", "application/json");
 
             if (!string.IsNullOrWhiteSpace(options.ApiToken))

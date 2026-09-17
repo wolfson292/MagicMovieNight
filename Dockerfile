@@ -17,6 +17,14 @@ COPY . .
 RUN dotnet publish src/MagicMovieNight.Web/MagicMovieNight.Web.csproj \
     -c Release -o /app --no-restore
 
+# TEMPORARY DIAGNOSTIC: blazor.web.js is missing from the published image although a
+# local publish on SDK 10.0.202 includes it. Print what this SDK actually produced.
+RUN echo "=== SDK VERSION: $(dotnet --version) ===" \
+ && echo "=== /app/wwwroot ===" && ls -la /app/wwwroot \
+ && echo "=== /app/wwwroot/_framework ===" && (ls -la /app/wwwroot/_framework || echo "MISSING") \
+ && echo "=== blazor.web.js in endpoints manifest? ===" \
+ && (grep -c blazor.web.js /app/MagicMovieNight.Web.staticwebassets.endpoints.json || echo "0 matches")
+
 FROM mcr.microsoft.com/dotnet/aspnet:10.0 AS runtime
 WORKDIR /app
 

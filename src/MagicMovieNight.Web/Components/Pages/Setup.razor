@@ -20,7 +20,11 @@
 <PageTitle>Setup — MagicMovieNight</PageTitle>
 
 <h1>Setup</h1>
-<p class="subtitle">What's connected, and what's still missing.</p>
+<p class="subtitle">
+    What's configured, and what's still missing. These show whether credentials are
+    present, not whether the last call actually succeeded — check the sync table below
+    for that.
+</p>
 
 <div class="status-list">
     <div class="status">
@@ -28,7 +32,7 @@
         <span class="name">Tautulli</span>
         <span class="muted">
             @(Tautulli.IsConfigured
-                ? "Connected — per-person Plex history with completion percentages."
+                ? "Credentials set — per-person Plex history with completion percentages."
                 : "Not configured. Set Tautulli__BaseUrl and Tautulli__ApiKey.")
         </span>
     </div>
@@ -57,7 +61,7 @@
         <span class="name">TMDB</span>
         <span class="muted">
             @(Tmdb.IsConfigured
-                ? "Connected — genres, cast, runtimes and streaming availability."
+                ? "Credentials set — genres, cast, runtimes and streaming availability."
                 : "Not configured. Set Tmdb__ApiToken. Without it, titles stay bare and recommendations get much worse.")
         </span>
     </div>
