@@ -1,12 +1,14 @@
 @page "/"
 @rendermode InteractiveServer
 @using MagicMovieNight.Data
+@using MagicMovieNight.Integrations.Arr
 @using MagicMovieNight.Integrations.Ingest
 @using MagicMovieNight.Web.Components.Shared
 @using Microsoft.EntityFrameworkCore
 @inject IRecommendationEngine Engine
 @inject RatingService Ratings
 @inject FeedbackService Feedback
+@inject MediaRequestService Requests
 @inject MovieNightDbContext Db
 @inject ILogger<Home> Logger
 
@@ -159,6 +161,40 @@
                         }
                     </div>
 
+                    @if (!item.InLibrary)
+                    {
+                        <div class="verdicts" style="margin-bottom: 0.6rem;">
+                            @if (item.RequestedAt is not null)
+                            {
+                                <span class="tag where">@(item.RequestNote ?? "Requested")</span>
+                            }
+                            else if (Requests.CanRequest(item))
+                            {
+                                <button class="chip"
+                                        disabled="@(_requesting == item.Id)"
+                                        @onclick="() => RequestItem(item)">
+                                    @if (_requesting == item.Id)
+                                    {
+                                        <span class="spinner"></span>
+                                        <span> Requesting…</span>
+                                    }
+                                    else
+                                    {
+                                        <span>
+                                            @(item.Kind == MediaKind.Movie
+                                                ? "Add to Radarr"
+                                                : "Request in Sonarr")
+                                        </span>
+                                    }
+                                </button>
+                            }
+                            @if (_requestErrors.TryGetValue(item.Id, out var requestError))
+                            {
+                                <span class="muted">@requestError</span>
+                            }
+                        </div>
+                    }
+
                     @* Two outcomes, both about the recommendation rather than the title.
                        Whether you liked it is a rating, and lives on the thumbs above. *@
                     <div class="verdicts">
@@ -215,6 +251,9 @@ else if (_run is not null && !_busy && _error is null)
 
     private Dictionary<int, RatingValue> _ratingsByItem = [];
 
+    private int? _requesting;
+    private readonly Dictionary<int, string> _requestErrors = [];
+
     protected override async Task OnInitializedAsync()
     {
         // Everyone, not just the household — picking for one person or a guest is a
@@ -262,6 +301,41 @@ else if (_run is not null && !_busy && _error is null)
         else
         {
             _ratingsByItem[mediaItemId] = result.Value;
+        }
+    }
+
+    /// <summary>
+    /// Sends the title to Sonarr or Radarr. Failures are shown next to the button and
+    /// leave it enabled, because the usual causes — a server being down, a missing root
+    /// folder — are fixable and worth retrying.
+    /// </summary>
+    private async Task RequestItem(MediaItem item)
+    {
+        _requesting = item.Id;
+        _requestErrors.Remove(item.Id);
+
+        try
+        {
+            var result = await Requests.RequestAsync(item.Id);
+
+            if (result.Success)
+            {
+                item.RequestedAt = DateTimeOffset.UtcNow;
+                item.RequestNote = result.Message;
+            }
+            else
+            {
+                _requestErrors[item.Id] = result.Message;
+            }
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Request failed for media {MediaId}.", item.Id);
+            _requestErrors[item.Id] = ex.Message;
+        }
+        finally
+        {
+            _requesting = null;
         }
     }
 

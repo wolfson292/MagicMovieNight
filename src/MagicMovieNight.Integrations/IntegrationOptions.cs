@@ -24,7 +24,7 @@ public class TautulliOptions
 {
     public const string Section = "Tautulli";
 
-    /// <summary>e.g. http://tautulli:8181 — the container name works on the shared Docker network.</summary>
+    /// <summary>e.g. http://tautulli:8181 — a container name resolves on a shared Docker network.</summary>
     public string? BaseUrl { get; set; }
 
     public string? ApiKey { get; set; }
@@ -53,6 +53,49 @@ public class TmdbOptions
     public string WatchRegion { get; set; } = "US";
 
     public bool Enabled => !string.IsNullOrWhiteSpace(ApiToken);
+}
+
+/// <summary>
+/// Shared shape for Sonarr and Radarr, which are the same application with different
+/// nouns — their add endpoints differ only in the id they key on and the field names
+/// around monitoring.
+/// </summary>
+public abstract class ArrOptions
+{
+    /// <summary>e.g. http://sonarr:8989 — a container name resolves on a shared Docker network.</summary>
+    public string? BaseUrl { get; set; }
+
+    public string? ApiKey { get; set; }
+
+    /// <summary>
+    /// Quality profile to add under. Left unset, the first profile the server reports is
+    /// used, which is right often enough to not be worth configuring up front.
+    /// </summary>
+    public int? QualityProfileId { get; set; }
+
+    /// <summary>Root folder to add into. Unset means the server's first root folder.</summary>
+    public string? RootFolderPath { get; set; }
+
+    /// <summary>Kick off a search as soon as something is added, rather than only monitoring it.</summary>
+    public bool SearchOnAdd { get; set; } = true;
+
+    public bool Enabled => !string.IsNullOrWhiteSpace(BaseUrl) && !string.IsNullOrWhiteSpace(ApiKey);
+}
+
+public class SonarrOptions : ArrOptions
+{
+    public const string Section = "Sonarr";
+
+    /// <summary>Sonarr defaults to monitoring every season of a newly added series.</summary>
+    public string MonitorMode { get; set; } = "all";
+}
+
+public class RadarrOptions : ArrOptions
+{
+    public const string Section = "Radarr";
+
+    /// <summary>Radarr's equivalent of Sonarr's monitor mode.</summary>
+    public string MinimumAvailability { get; set; } = "released";
 }
 
 public class ClaudeOptions

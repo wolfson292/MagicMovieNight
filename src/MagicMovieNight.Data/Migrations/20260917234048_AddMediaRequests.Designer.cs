@@ -4,6 +4,7 @@ using System.Collections.Generic;
 using MagicMovieNight.Data;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 
@@ -12,9 +13,11 @@ using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 namespace MagicMovieNight.Data.Migrations
 {
     [DbContext(typeof(MovieNightDbContext))]
-    partial class MovieNightDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260917234048_AddMediaRequests")]
+    partial class AddMediaRequests
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder

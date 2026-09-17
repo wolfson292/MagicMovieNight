@@ -168,9 +168,9 @@ public class NetflixRatingsCsvImporterTests
     {
         const string csv = """
             Profile Name,Title Name,Thumbs Value,Device Model,Event Utc Ts,Title Type
-            Scott,Slow Horses,3,Apple TV,2026-08-14 20:14:02,Show
-            Scott,Emily in Paris,1,Apple TV,2026-07-02 21:03:55,Show
-            Scott,Hit Man,2,Web,2026-06-11 19:45:00,Movie
+            Alex,Slow Horses,3,Apple TV,2026-08-14 20:14:02,Show
+            Alex,Emily in Paris,1,Apple TV,2026-07-02 21:03:55,Show
+            Alex,Hit Man,2,Web,2026-06-11 19:45:00,Movie
             """;
 
         var ratings = await ParseAsync(csv);
@@ -180,7 +180,7 @@ public class NetflixRatingsCsvImporterTests
         Assert.Equal("Slow Horses", ratings[0].Title);
         Assert.Equal(RatingValue.Down, ratings[1].Value);
         Assert.Equal(RatingValue.Up, ratings[2].Value);
-        Assert.Equal("Scott", ratings[0].ExternalProfileId);
+        Assert.Equal("Alex", ratings[0].ExternalProfileId);
     }
 
     [Fact]
@@ -188,8 +188,8 @@ public class NetflixRatingsCsvImporterTests
     {
         const string csv = """
             Profile Name,Title Name,Star Value,Date
-            Scott,The Wire,5,03/14/2016
-            Scott,Some Dud,1,04/02/2016
+            Alex,The Wire,5,03/14/2016
+            Alex,Some Dud,1,04/02/2016
             """;
 
         var ratings = await ParseAsync(csv);
@@ -204,7 +204,7 @@ public class NetflixRatingsCsvImporterTests
     {
         const string csv = """
             Profile Name,Title Name,Episode Title Name,Thumbs Value,Event Utc Ts
-            Scott,Severance,Cold Harbor,3,2026-04-01 22:00:00
+            Alex,Severance,Cold Harbor,3,2026-04-01 22:00:00
             """;
 
         var ratings = await ParseAsync(csv);
@@ -230,7 +230,7 @@ public class NetflixRatingsCsvImporterTests
     {
         const string csv = """
             Profile Name,Title Name,Thumbs Value,Event Utc Ts
-            Scott,Slow Horses,3,2026-08-14 20:14:02
+            Alex,Slow Horses,3,2026-08-14 20:14:02
             """;
 
         var first = await ParseAsync(csv);

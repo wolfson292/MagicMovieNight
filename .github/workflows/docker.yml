@@ -58,7 +58,7 @@ jobs:
         with:
           context: .
           push: true
-          # The NUC is amd64; arm64 is here so the image also runs on the Pis.
+          # amd64 for most servers; arm64 so the image also runs on a Pi or Apple silicon.
           platforms: linux/amd64,linux/arm64
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}

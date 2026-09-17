@@ -6,8 +6,8 @@ namespace MagicMovieNight.Core.Models;
 /// source actually tells us about.
 ///
 /// Who a profile represents is a separate question, answered by
-/// <see cref="ProfileMembership"/>. That indirection is the point: "Wolf Family" on Plex
-/// is not a person, and Angela's Netflix profile is sometimes two.
+/// <see cref="ProfileMembership"/>. That indirection is the point: a Plex profile named
+/// after the household is not a person, and a shared streaming profile is sometimes two.
 /// </summary>
 public class Profile
 {
@@ -15,7 +15,7 @@ public class Profile
 
     public required string DisplayName { get; set; }
 
-    /// <summary>Source-specific identities, e.g. ("Tautulli", "Wolf Family").</summary>
+    /// <summary>Source-specific identities, e.g. ("Tautulli", "living-room").</summary>
     public List<ProfileIdentity> Identities { get; set; } = [];
 
     /// <summary>Which people watching on this profile counts for.</summary>

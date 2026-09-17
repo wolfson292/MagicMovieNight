@@ -5,6 +5,7 @@
 @using MagicMovieNight.Integrations.Ingest
 @using MagicMovieNight.Integrations.Tautulli
 @using MagicMovieNight.Integrations.Tmdb
+@using MagicMovieNight.Integrations.Arr
 @using MagicMovieNight.Integrations.Trakt
 @using Microsoft.EntityFrameworkCore
 @using Microsoft.Extensions.Options
@@ -14,6 +15,8 @@
 @inject TraktClient Trakt
 @inject TautulliClient Tautulli
 @inject TmdbClient Tmdb
+@inject SonarrClient Sonarr
+@inject RadarrClient Radarr
 @inject IOptions<ClaudeOptions> ClaudeConfig
 @inject ILogger<Setup> Logger
 
@@ -63,6 +66,26 @@
             @(Tmdb.IsConfigured
                 ? "Credentials set — genres, cast, runtimes and streaming availability."
                 : "Not configured. Set Tmdb__ApiToken. Without it, titles stay bare and recommendations get much worse.")
+        </span>
+    </div>
+
+    <div class="status">
+        <span class="dot @(Sonarr.IsConfigured ? "ok" : "off")"></span>
+        <span class="name">Sonarr</span>
+        <span class="muted">
+            @(Sonarr.IsConfigured
+                ? "Credentials set — series you don't have can be requested from a pick."
+                : "Not configured. Set Sonarr__BaseUrl and Sonarr__ApiKey to request series you don't own.")
+        </span>
+    </div>
+
+    <div class="status">
+        <span class="dot @(Radarr.IsConfigured ? "ok" : "off")"></span>
+        <span class="name">Radarr</span>
+        <span class="muted">
+            @(Radarr.IsConfigured
+                ? "Credentials set — films you don't have can be added from a pick."
+                : "Not configured. Set Radarr__BaseUrl and Radarr__ApiKey to add films you don't own.")
         </span>
     </div>
 

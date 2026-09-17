@@ -11,9 +11,9 @@ namespace MagicMovieNight.Integrations.Claude;
 /// The translation from people to history is the interesting part. A source only ever
 /// reports which account was used, so watch events hang off profiles; but a profile can
 /// represent several people and a person can watch on several profiles. Asking for
-/// Scott's taste therefore means gathering every profile Scott is a member of — his own
-/// account and every shared one — which is exactly how watching together on one login
-/// still informs both people's profiles.
+/// One person's taste therefore means gathering every profile they are a member of —
+/// their own account and every shared one — which is exactly how watching together on a
+/// single login still informs both people's profiles.
 ///
 /// Passing no people means the household: everyone flagged as part of it, pooled.
 /// Pooling is deliberately not the same as averaging two separate profiles — it lets a

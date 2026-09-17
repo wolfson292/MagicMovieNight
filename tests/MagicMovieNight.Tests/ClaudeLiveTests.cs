@@ -112,7 +112,7 @@ public class ClaudeLiveTests(ITestOutputHelper output)
 
     private static TasteProfile SampleProfile() => new()
     {
-        Subject = "the whole household — Scott and Sam",
+        Subject = "the whole household — two adults",
         PersonIds = [1, 2],
         ProfileIds = [10, 11],
         TotalWatches = 4210,

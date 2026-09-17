@@ -1,8 +1,10 @@
-# MagicMovieNight — deploy as a Portainer stack on the NUC.
+# MagicMovieNight.
 #
-# Joins the existing `home` bridge so it can reach tautulli:8181 directly and so
-# swag can reverse-proxy it. Postgres stays on a private network — nothing outside
-# this stack needs to talk to it.
+# Joins an existing external bridge network so it can reach Tautulli (and Sonarr,
+# Radarr, Plex) by container name, and so a reverse proxy on that network can serve
+# it. Postgres stays on a private network — nothing outside this stack talks to it.
+#
+# Set MEDIA_NETWORK to whatever your media containers already share.
 
 services:
   app:
@@ -23,17 +25,21 @@ services:
       Trakt__ClientId: "${TRAKT_CLIENT_ID}"
       Trakt__ClientSecret: "${TRAKT_CLIENT_SECRET}"
       Trakt__User: "${TRAKT_USER:-me}"
+      Sonarr__BaseUrl: "${SONARR_URL}"
+      Sonarr__ApiKey: "${SONARR_API_KEY}"
+      Radarr__BaseUrl: "${RADARR_URL}"
+      Radarr__ApiKey: "${RADARR_API_KEY}"
       Tmdb__ApiToken: "${TMDB_API_TOKEN}"
       Tmdb__WatchRegion: "${TMDB_REGION:-US}"
       Claude__Model: "${CLAUDE_MODEL:-claude-opus-5}"
-      TZ: "${TZ:-America/New_York}"
+      TZ: "${TZ:-UTC}"
     volumes:
       # Keeps the Trakt refresh token across redeploys so pairing is a one-time job.
       - config:/config
     ports:
       - "${APP_PORT:-8100}:8080"
     networks:
-      - home
+      - media
       - internal
 
   db:
@@ -61,6 +67,7 @@ volumes:
   config:
 
 networks:
-  home:
+  media:
     external: true
+    name: "${MEDIA_NETWORK:-media}"
   internal:

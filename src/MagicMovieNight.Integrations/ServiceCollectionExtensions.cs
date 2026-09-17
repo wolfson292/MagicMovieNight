@@ -1,5 +1,6 @@
 using Anthropic;
 using MagicMovieNight.Core.Abstractions;
+using MagicMovieNight.Integrations.Arr;
 using MagicMovieNight.Integrations.Candidates;
 using MagicMovieNight.Integrations.Catalog;
 using MagicMovieNight.Integrations.Claude;
@@ -31,6 +32,8 @@ public static class ServiceCollectionExtensions
         services.Configure<TraktOptions>(config.GetSection(TraktOptions.Section));
         services.Configure<TautulliOptions>(config.GetSection(TautulliOptions.Section));
         services.Configure<TmdbOptions>(config.GetSection(TmdbOptions.Section));
+        services.Configure<SonarrOptions>(config.GetSection(SonarrOptions.Section));
+        services.Configure<RadarrOptions>(config.GetSection(RadarrOptions.Section));
         services.Configure<ClaudeOptions>(config.GetSection(ClaudeOptions.Section));
         services.Configure<HouseholdOptions>(config.GetSection(HouseholdOptions.Section));
 
@@ -68,6 +71,20 @@ public static class ServiceCollectionExtensions
             }
         }).AddStandardResilienceHandler();
 
+        // Sonarr and Radarr take the API key as a header on every call. The base address
+        // keeps its trailing slash for the same reason TMDB's does.
+        services.AddHttpClient<SonarrClient>((sp, http) =>
+        {
+            var options = sp.GetRequiredService<IOptions<SonarrOptions>>().Value;
+            ConfigureArr(http, options);
+        }).AddStandardResilienceHandler();
+
+        services.AddHttpClient<RadarrClient>((sp, http) =>
+        {
+            var options = sp.GetRequiredService<IOptions<RadarrOptions>>().Value;
+            ConfigureArr(http, options);
+        }).AddStandardResilienceHandler();
+
         services.AddSingleton(sp =>
         {
             var options = sp.GetRequiredService<IOptions<ClaudeOptions>>().Value;
@@ -85,6 +102,7 @@ public static class ServiceCollectionExtensions
         services.AddScoped<IngestionService>();
         services.AddScoped<RatingService>();
         services.AddScoped<FeedbackService>();
+        services.AddScoped<MediaRequestService>();
 
         services.AddScoped<IHistorySource>(sp => sp.GetRequiredService<TautulliClient>());
         services.AddScoped<IHistorySource>(sp => sp.GetRequiredService<TraktClient>());
@@ -100,6 +118,24 @@ public static class ServiceCollectionExtensions
         services.AddScoped<IRatingImporter, NetflixRatingsCsvImporter>();
 
         return services;
+
+        static void ConfigureArr(HttpClient http, ArrOptions options)
+        {
+            if (string.IsNullOrWhiteSpace(options.BaseUrl))
+            {
+                return;
+            }
+
+            var baseUrl = options.BaseUrl.EndsWith('/') ? options.BaseUrl : options.BaseUrl + "/";
+            http.BaseAddress = new Uri(baseUrl);
+            http.DefaultRequestHeaders.Add("Accept", "application/json");
+            http.DefaultRequestHeaders.UserAgent.ParseAdd(UserAgent);
+
+            if (!string.IsNullOrWhiteSpace(options.ApiKey))
+            {
+                http.DefaultRequestHeaders.Add("X-Api-Key", options.ApiKey);
+            }
+        }
 
         static void ConfigureTrakt(IServiceProvider sp, HttpClient http)
         {

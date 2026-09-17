@@ -36,7 +36,7 @@ builder.Services.AddHostedService<SyncBackgroundService>();
 // Repairs catalog entries left bare when TMDB was unavailable at ingest time.
 builder.Services.AddHostedService<CatalogBackfillService>();
 
-// Health endpoint for the container — Portainer and swag both want one.
+// Health endpoint for the container — orchestrators and reverse proxies both want one.
 builder.Services.AddHealthChecks()
     .AddDbContextCheck<MovieNightDbContext>();
 

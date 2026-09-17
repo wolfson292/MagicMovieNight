@@ -49,6 +49,15 @@ public class MediaItem
 
     public DateTimeOffset LastEnrichedAt { get; set; }
 
+    /// <summary>
+    /// When this was sent to Sonarr or Radarr. Set only on success, so a failed request
+    /// leaves the button available to retry.
+    /// </summary>
+    public DateTimeOffset? RequestedAt { get; set; }
+
+    /// <summary>What the download server said — "Requested on Radarr", "Already in Sonarr".</summary>
+    public string? RequestNote { get; set; }
+
     public List<WatchEvent> WatchEvents { get; set; } = [];
 
     public string DisplayTitle => Year is null ? Title : $"{Title} ({Year})";

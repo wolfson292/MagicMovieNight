@@ -99,26 +99,14 @@ namespace MagicMovieNight.Data.Migrations
 
             migrationBuilder.CreateIndex(name: "IX_People_Name", table: "People", column: "Name", unique: true);
 
-            // The four people in and around this household, so the mapping UI has
-            // something to map to on first load. Profiles stay deliberately unassigned —
-            // who each account represents is a judgement only the household can make.
-            migrationBuilder.InsertData(
-                table: "People",
-                columns: ["Name", "InHousehold", "IsResident", "CreatedAt"],
-                values: new object[,]
-                {
-                    { "Scott", true, true, DateTimeOffset.UtcNow },
-                    { "Angela", true, true, DateTimeOffset.UtcNow },
-                    { "Willow", false, true, DateTimeOffset.UtcNow },
-                    { "Allison", false, false, DateTimeOffset.UtcNow },
-                });
-
-            // Ratings were attached to profiles and now belong to people, so the existing
-            // rows have to be re-pointed before the foreign key can exist. There is no
-            // automatic answer for a shared account: a rating made on "Wolf Family" was
-            // made by a human the database never recorded. Scott confirmed those are
-            // his and Angela's jointly, so each is duplicated onto both of them; every
-            // other profile maps to the person of the same name.
+            // Ratings were attached to profiles and now belong to people, so existing rows
+            // have to be re-pointed before the foreign key can exist.
+            //
+            // There is no automatic answer for a shared account: a rating made on a
+            // profile representing two people was made by a human the database never
+            // recorded. The safe default gives each profile holding ratings a person of
+            // the same name, so nothing is lost and the mapping is visible in the UI to
+            // correct by hand. An existing person of that name is reused.
             //
             // A scratch column carries the original profile id, because person ids and
             // profile ids overlap — remapping in place would otherwise match rows that
@@ -127,21 +115,12 @@ namespace MagicMovieNight.Data.Migrations
                 ALTER TABLE "Ratings" ADD COLUMN "_oldProfileId" integer;
                 UPDATE "Ratings" SET "_oldProfileId" = "PersonId";
 
-                INSERT INTO "Ratings"
-                    ("PersonId", "MediaItemId", "SeasonNumber", "EpisodeNumber",
-                     "Value", "Stars", "Source", "SourceKey", "RatedAt", "_oldProfileId")
-                SELECT
-                    (SELECT "Id" FROM "People" WHERE "Name" = 'Angela'),
-                    r."MediaItemId", r."SeasonNumber", r."EpisodeNumber",
-                    r."Value", r."Stars", r."Source", r."SourceKey" || ':dup', r."RatedAt", NULL
+                INSERT INTO "People" ("Name", "InHousehold", "IsResident", "CreatedAt")
+                SELECT DISTINCT p."DisplayName", FALSE, TRUE, now()
                 FROM "Ratings" r
                 JOIN "Profiles" p ON p."Id" = r."_oldProfileId"
-                WHERE p."DisplayName" = 'Wolf Family';
-
-                UPDATE "Ratings" r
-                SET "PersonId" = (SELECT "Id" FROM "People" WHERE "Name" = 'Scott')
-                FROM "Profiles" p
-                WHERE p."Id" = r."_oldProfileId" AND p."DisplayName" = 'Wolf Family';
+                WHERE NOT EXISTS (
+                    SELECT 1 FROM "People" pe WHERE lower(pe."Name") = lower(p."DisplayName"));
 
                 UPDATE "Ratings" r
                 SET "PersonId" = pe."Id"

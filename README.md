@@ -3,7 +3,7 @@
 A C# app that reads what your household actually watches — across Plex, Trakt, and the
 streaming services — and uses Claude to tell you what to put on tonight.
 
-Runs in Docker on the NUC, deployed as a Portainer stack.
+Runs in Docker alongside your existing media stack.
 
 ---
 
@@ -109,6 +109,21 @@ account data export** (netflix.com/account/getmyinfo) — not the viewing-activi
 which only has watch dates. Both the current thumbs scale and the pre-2017 five-star
 scale are handled. Ratings you make in the app are never overwritten by an import.
 
+### Requesting what you don't have
+
+A recommendation for something not in your library is only half useful. When Sonarr and
+Radarr are configured, picks that aren't on Plex get a button — **Request in Sonarr** for
+a series, **Add to Radarr** for a film — that adds it and starts the search.
+
+Quality profile and root folder are discovered from the server when not configured, since
+most installs have exactly one of each. A title already present comes back as "Already in
+Sonarr" rather than an error, because from the sofa those mean the same thing. Failures
+leave the button enabled, as the usual causes are fixable and worth retrying.
+
+Sonarr keys on TVDB ids while everything else here uses TMDB, so a series without a TVDB
+id is refused with an explanation rather than guessed at — adding the wrong show is worse
+than adding none.
+
 ---
 
 ## Layout
@@ -135,29 +150,32 @@ tests/
 | `TMDB_API_TOKEN` | [themoviedb.org/settings/api](https://www.themoviedb.org/settings/api) — v4 read token | Effectively yes |
 | `TAUTULLI_API_KEY` | Tautulli → Settings → Web Interface → API | For Plex history |
 | `TRAKT_CLIENT_ID` / `TRAKT_CLIENT_SECRET` | [trakt.tv/oauth/applications](https://trakt.tv/oauth/applications), redirect URI `urn:ietf:wg:oauth:2.0:oob` | For Trakt history |
+| `SONARR_API_KEY` / `RADARR_API_KEY` | Each app under Settings → General | Optional, to request things you don't own |
 
 TMDB is listed as "effectively required" because without it titles arrive with no genres,
 cast, runtime or streaming availability — and recommendations get noticeably worse.
 
 ### 2. Deploy
 
-CI publishes `ghcr.io/wolfson292/magicmovienight:latest` on every push to `main`, and the
-package is public — the NUC pulls it with no registry login.
+CI publishes `ghcr.io/wolfson292/magicmovienight:latest` on every push to `main`. The
+package is public, so no registry login is needed.
 
 ```bash
 cp .env.example .env    # fill it in
 docker compose up -d
 ```
 
-On the NUC, deploy as a Portainer stack instead and paste the variables into the stack's
-environment editor. `compose.yaml` deliberately has no `build:` key, because Portainer has
-no build context and a build directive makes the file undeployable there.
+With Portainer, deploy it as a stack and paste the variables into the stack's environment
+editor instead. `compose.yaml` deliberately has no `build:` key, because Portainer has no
+build context and a build directive makes the file undeployable there.
 
-The stack joins the existing `home` bridge network, so `tautulli:8181` resolves directly
-and swag can reverse-proxy it. That network must already exist on the host:
+The app joins an existing external Docker network so it can reach your media containers by
+name — `tautulli:8181`, `sonarr:8989`, `radarr:7878` — and so a reverse proxy on that same
+network can serve it. Point `MEDIA_NETWORK` at whatever your media containers already
+share, or create one:
 
 ```bash
-docker network create home    # only if it does not exist yet
+docker network create media
 ```
 
 The app publishes on host port **8100** by default. Check the port is actually free before
