@@ -1,0 +1,174 @@
+@page "/import"
+@rendermode InteractiveServer
+@using MagicMovieNight.Data
+@using MagicMovieNight.Integrations.Ingest
+@using Microsoft.EntityFrameworkCore
+@inject MovieNightDbContext Db
+@inject IEnumerable<IHistoryImporter> Importers
+@inject IngestionService Ingestion
+@inject ILogger<Import> Logger
+
+<PageTitle>Import — MagicMovieNight</PageTitle>
+
+<h1>Import streaming history</h1>
+<p class="subtitle">
+    The services that won't give us an API will give you a file. Upload it here.
+</p>
+
+<div class="panel">
+    <div class="field">
+        <label for="importer">Which export is this?</label>
+        <select id="importer" @bind="_selectedSource">
+            @foreach (var importer in Importers)
+            {
+                <option value="@importer.Source">@importer.DisplayName</option>
+            }
+        </select>
+    </div>
+
+    <div class="field">
+        <label for="viewer">Whose history is it?</label>
+        <select id="viewer" @bind="_viewerId">
+            <option value="0">— pick someone —</option>
+            @foreach (var viewer in _viewers)
+            {
+                <option value="@viewer.Id">@viewer.DisplayName</option>
+            }
+        </select>
+        <p class="muted" style="margin-top: 0.4rem;">
+            These exports are downloaded per profile and usually don't say whose they
+            are, so tell us.
+        </p>
+    </div>
+
+    <div class="field">
+        <label for="file">The CSV</label>
+        <InputFile id="file" OnChange="OnFileSelected" accept=".csv" />
+    </div>
+
+    <button class="primary" @onclick="RunImport" disabled="@(_busy || _file is null || _viewerId == 0)">
+        @if (_busy)
+        {
+            <span class="spinner"></span> <span>Importing…</span>
+        }
+        else
+        {
+            <span>Import</span>
+        }
+    </button>
+</div>
+
+@if (_error is not null)
+{
+    <div class="error">
+        <strong>Couldn't read that file.</strong>
+        <div class="muted">@_error</div>
+    </div>
+}
+
+@if (_result is not null)
+{
+    <div class="notice">
+        Imported <strong>@_result.Imported</strong> new watches.
+        @_result.Skipped were already known,
+        and @_result.Unresolved couldn't be matched to a film or show.
+    </div>
+}
+
+<h2>Where to get the files</h2>
+<div class="panel">
+    <table>
+        <thead>
+            <tr>
+                <th>Service</th>
+                <th>Where</th>
+                <th>Wait</th>
+            </tr>
+        </thead>
+        <tbody>
+            <tr>
+                <td>Netflix</td>
+                <td>netflix.com/viewingactivity → "Download all" (per profile)</td>
+                <td>Instant</td>
+            </tr>
+            <tr>
+                <td>Prime Video</td>
+                <td>amazon.com → Account → Request Your Information → Prime Video</td>
+                <td>A few days</td>
+            </tr>
+            <tr>
+                <td>Hulu</td>
+                <td>hulu.com privacy portal → request your data</td>
+                <td>A few days</td>
+            </tr>
+        </tbody>
+    </table>
+    <p class="muted">
+        Apple TV has no equivalent export. What plays through Plex or Channels on the
+        Apple TV box is already captured by Tautulli.
+    </p>
+</div>
+
+@code {
+    private List<Viewer> _viewers = [];
+    private WatchSource _selectedSource = WatchSource.NetflixCsv;
+    private int _viewerId;
+    private IBrowserFile? _file;
+    private bool _busy;
+    private IngestResult? _result;
+    private string? _error;
+
+    /// <summary>Exports of a decade of viewing are still small; this is just a sanity bound.</summary>
+    private const long MaxUploadBytes = 50 * 1024 * 1024;
+
+    protected override async Task OnInitializedAsync()
+    {
+        _viewers = await Db.Viewers.OrderBy(v => v.DisplayName).ToListAsync();
+        _selectedSource = Importers.First().Source;
+    }
+
+    private void OnFileSelected(InputFileChangeEventArgs e)
+    {
+        _file = e.File;
+        _error = null;
+        _result = null;
+    }
+
+    private async Task RunImport()
+    {
+        if (_file is null || _viewerId == 0)
+        {
+            return;
+        }
+
+        _busy = true;
+        _error = null;
+        _result = null;
+
+        try
+        {
+            var importer = Importers.First(i => i.Source == _selectedSource);
+
+            // Copy to memory first: the browser file stream is not seekable, and
+            // CsvHelper wants to read the header before anything else.
+            using var buffer = new MemoryStream();
+            await using (var upload = _file.OpenReadStream(MaxUploadBytes))
+            {
+                await upload.CopyToAsync(buffer);
+            }
+
+            buffer.Position = 0;
+
+            _result = await Ingestion.ImportAsync(importer, buffer, _viewerId);
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "CSV import failed.");
+            _error = ex.Message;
+        }
+        finally
+        {
+            _busy = false;
+        }
+    }
+}

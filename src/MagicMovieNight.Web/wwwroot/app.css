@@ -1,0 +1,348 @@
+:root {
+    --bg: #0d0f14;
+    --surface: #151922;
+    --surface-hi: #1e2430;
+    --line: #262d3b;
+    --text: #e8eaf0;
+    --text-dim: #949cb0;
+    --accent: #f5c542;
+    --accent-dim: #8a6f1f;
+    --good: #4ec98a;
+    --bad: #e0685f;
+    --radius: 12px;
+}
+
+* {
+    box-sizing: border-box;
+}
+
+html, body {
+    margin: 0;
+    padding: 0;
+}
+
+body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+    font-size: 15px;
+    line-height: 1.55;
+    -webkit-font-smoothing: antialiased;
+}
+
+h1 {
+    font-size: 1.75rem;
+    letter-spacing: -0.02em;
+    margin: 0 0 0.35rem;
+}
+
+h2 {
+    font-size: 1.15rem;
+    letter-spacing: -0.01em;
+    margin: 2rem 0 0.75rem;
+}
+
+.subtitle {
+    color: var(--text-dim);
+    margin: 0 0 1.75rem;
+}
+
+a {
+    color: var(--accent);
+}
+
+/* --- Controls --- */
+
+button {
+    font: inherit;
+    cursor: pointer;
+    border-radius: 999px;
+    border: 1px solid var(--line);
+    background: var(--surface-hi);
+    color: var(--text);
+    padding: 0.5rem 1.1rem;
+    transition: background 0.15s, border-color 0.15s, opacity 0.15s;
+}
+
+button:hover:not(:disabled) {
+    background: var(--line);
+}
+
+button:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+}
+
+button.primary {
+    background: var(--accent);
+    border-color: var(--accent);
+    color: #1a1400;
+    font-weight: 600;
+}
+
+button.primary:hover:not(:disabled) {
+    background: #ffd65c;
+}
+
+button.chip {
+    padding: 0.35rem 0.85rem;
+    font-size: 0.87rem;
+}
+
+button.chip.on {
+    background: var(--accent);
+    border-color: var(--accent);
+    color: #1a1400;
+    font-weight: 600;
+}
+
+input[type="text"], input[type="number"], select, textarea {
+    font: inherit;
+    background: var(--surface);
+    border: 1px solid var(--line);
+    color: var(--text);
+    border-radius: var(--radius);
+    padding: 0.65rem 0.9rem;
+    width: 100%;
+}
+
+input:focus, select:focus, textarea:focus {
+    outline: 2px solid var(--accent-dim);
+    outline-offset: 1px;
+}
+
+label {
+    display: block;
+    font-size: 0.85rem;
+    color: var(--text-dim);
+    margin-bottom: 0.35rem;
+}
+
+/* --- Panels --- */
+
+.panel {
+    background: var(--surface);
+    border: 1px solid var(--line);
+    border-radius: var(--radius);
+    padding: 1.25rem;
+}
+
+.row {
+    display: flex;
+    gap: 0.75rem;
+    align-items: center;
+    flex-wrap: wrap;
+}
+
+.field {
+    margin-bottom: 1rem;
+}
+
+.muted {
+    color: var(--text-dim);
+    font-size: 0.9rem;
+}
+
+.error {
+    border-left: 3px solid var(--bad);
+    background: rgba(224, 104, 95, 0.08);
+    padding: 0.85rem 1rem;
+    border-radius: 8px;
+    margin: 1rem 0;
+}
+
+.notice {
+    border-left: 3px solid var(--accent);
+    background: rgba(245, 197, 66, 0.07);
+    padding: 0.85rem 1rem;
+    border-radius: 8px;
+    margin: 1rem 0;
+}
+
+/* --- Recommendation cards --- */
+
+.picks {
+    display: grid;
+    gap: 1rem;
+    margin-top: 1.5rem;
+}
+
+.pick {
+    display: grid;
+    grid-template-columns: 110px 1fr;
+    gap: 1.25rem;
+    background: var(--surface);
+    border: 1px solid var(--line);
+    border-radius: var(--radius);
+    padding: 1.25rem;
+}
+
+.pick .poster {
+    width: 110px;
+    aspect-ratio: 2 / 3;
+    border-radius: 8px;
+    object-fit: cover;
+    background: var(--surface-hi);
+}
+
+.pick .poster.empty {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 2rem;
+    opacity: 0.35;
+}
+
+.pick .rank {
+    color: var(--accent);
+    font-weight: 700;
+    font-size: 0.85rem;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+}
+
+.pick h3 {
+    margin: 0.2rem 0 0.5rem;
+    font-size: 1.25rem;
+    letter-spacing: -0.01em;
+}
+
+.pick .meta {
+    display: flex;
+    gap: 0.5rem;
+    flex-wrap: wrap;
+    margin-bottom: 0.75rem;
+}
+
+.tag {
+    font-size: 0.78rem;
+    padding: 0.18rem 0.6rem;
+    border-radius: 999px;
+    background: var(--surface-hi);
+    color: var(--text-dim);
+    border: 1px solid var(--line);
+}
+
+.tag.where {
+    color: var(--accent);
+    border-color: var(--accent-dim);
+}
+
+.pick .pitch {
+    margin: 0 0 0.75rem;
+}
+
+.pick .based-on {
+    font-size: 0.88rem;
+    color: var(--text-dim);
+    border-left: 2px solid var(--line);
+    padding-left: 0.75rem;
+    margin-bottom: 0.9rem;
+}
+
+.verdicts {
+    display: flex;
+    gap: 0.5rem;
+    flex-wrap: wrap;
+}
+
+@media (max-width: 640px) {
+    .pick {
+        grid-template-columns: 1fr;
+    }
+
+    .pick .poster {
+        width: 90px;
+    }
+}
+
+/* --- Status list --- */
+
+.status-list {
+    display: grid;
+    gap: 0.75rem;
+}
+
+.status {
+    display: flex;
+    align-items: center;
+    gap: 0.85rem;
+    padding: 0.9rem 1rem;
+    background: var(--surface);
+    border: 1px solid var(--line);
+    border-radius: var(--radius);
+}
+
+.dot {
+    width: 9px;
+    height: 9px;
+    border-radius: 50%;
+    flex-shrink: 0;
+}
+
+.dot.ok {
+    background: var(--good);
+}
+
+.dot.off {
+    background: var(--text-dim);
+}
+
+.status .name {
+    font-weight: 600;
+    min-width: 120px;
+}
+
+table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 0.92rem;
+}
+
+th, td {
+    text-align: left;
+    padding: 0.6rem 0.75rem;
+    border-bottom: 1px solid var(--line);
+}
+
+th {
+    color: var(--text-dim);
+    font-weight: 500;
+    font-size: 0.82rem;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+}
+
+.spinner {
+    display: inline-block;
+    width: 14px;
+    height: 14px;
+    border: 2px solid var(--accent-dim);
+    border-top-color: var(--accent);
+    border-radius: 50%;
+    animation: spin 0.7s linear infinite;
+    vertical-align: -2px;
+}
+
+@keyframes spin {
+    to { transform: rotate(360deg); }
+}
+
+#blazor-error-ui {
+    background: var(--bad);
+    color: #fff;
+    bottom: 0;
+    display: none;
+    left: 0;
+    padding: 0.8rem 1.25rem;
+    position: fixed;
+    width: 100%;
+    z-index: 1000;
+}
+
+#blazor-error-ui .dismiss {
+    cursor: pointer;
+    position: absolute;
+    right: 1rem;
+    top: 0.75rem;
+}

@@ -1,0 +1,159 @@
+@page "/history"
+@rendermode InteractiveServer
+@using MagicMovieNight.Data
+@using Microsoft.EntityFrameworkCore
+@inject MovieNightDbContext Db
+
+<PageTitle>History — MagicMovieNight</PageTitle>
+
+<h1>History</h1>
+<p class="subtitle">What the recommender is actually working from.</p>
+
+<div class="row" style="margin-bottom: 1.5rem;">
+    <div class="panel" style="flex: 1; min-width: 140px;">
+        <div class="muted">Watch events</div>
+        <div style="font-size: 1.9rem; font-weight: 700;">@_totalEvents.ToString("N0")</div>
+    </div>
+    <div class="panel" style="flex: 1; min-width: 140px;">
+        <div class="muted">Titles known</div>
+        <div style="font-size: 1.9rem; font-weight: 700;">@_totalItems.ToString("N0")</div>
+    </div>
+    <div class="panel" style="flex: 1; min-width: 140px;">
+        <div class="muted">Viewers</div>
+        <div style="font-size: 1.9rem; font-weight: 700;">@_totalViewers.ToString("N0")</div>
+    </div>
+</div>
+
+<h2>By source</h2>
+<div class="panel">
+    <table>
+        <thead>
+            <tr>
+                <th>Source</th>
+                <th>Events</th>
+                <th>Earliest</th>
+                <th>Latest</th>
+            </tr>
+        </thead>
+        <tbody>
+            @foreach (var s in _bySource)
+            {
+                <tr>
+                    <td>@s.Source</td>
+                    <td>@s.Count.ToString("N0")</td>
+                    <td>@s.Earliest.ToLocalTime().ToString("MMM yyyy")</td>
+                    <td>@s.Latest.ToLocalTime().ToString("MMM d, yyyy")</td>
+                </tr>
+            }
+        </tbody>
+    </table>
+</div>
+
+<h2>Recent watches</h2>
+<div class="panel">
+    <table>
+        <thead>
+            <tr>
+                <th>When</th>
+                <th>Who</th>
+                <th>What</th>
+                <th>Source</th>
+                <th>Got through</th>
+            </tr>
+        </thead>
+        <tbody>
+            @foreach (var e in _recent)
+            {
+                <tr>
+                    <td>@e.WatchedAt.ToLocalTime().ToString("MMM d")</td>
+                    <td>@(e.Viewer?.DisplayName ?? "—")</td>
+                    <td>
+                        @e.MediaItem?.DisplayTitle
+                        @if (e.SeasonNumber is not null)
+                        {
+                            <span class="muted"> S@(e.SeasonNumber)@(e.EpisodeNumber is not null ? $"E{e.EpisodeNumber}" : "")</span>
+                        }
+                    </td>
+                    <td class="muted">@e.Source</td>
+                    <td class="muted">@(e.PercentComplete is null ? "—" : $"{e.PercentComplete}%")</td>
+                </tr>
+            }
+        </tbody>
+    </table>
+
+    @if (_recent.Count == 0)
+    {
+        <p class="muted">
+            Nothing yet. Sync on the <a href="setup">Setup</a> page or
+            <a href="import">import a CSV</a>.
+        </p>
+    }
+</div>
+
+<h2>Past runs</h2>
+<div class="panel">
+    <table>
+        <thead>
+            <tr>
+                <th>When</th>
+                <th>Asked for</th>
+                <th>Picks</th>
+                <th>Candidates</th>
+                <th>Tokens</th>
+            </tr>
+        </thead>
+        <tbody>
+            @foreach (var run in _runs)
+            {
+                <tr>
+                    <td>@run.CreatedAt.ToLocalTime().ToString("MMM d, HH:mm")</td>
+                    <td class="muted">@(string.IsNullOrWhiteSpace(run.Prompt) ? "—" : run.Prompt)</td>
+                    <td>@run.Recommendations.Count</td>
+                    <td class="muted">@run.CandidateCount</td>
+                    <td class="muted">@run.InputTokens.ToString("N0") in / @run.OutputTokens.ToString("N0") out</td>
+                </tr>
+            }
+        </tbody>
+    </table>
+</div>
+
+@code {
+    private record SourceStat(WatchSource Source, int Count, DateTimeOffset Earliest, DateTimeOffset Latest);
+
+    private int _totalEvents;
+    private int _totalItems;
+    private int _totalViewers;
+    private List<SourceStat> _bySource = [];
+    private List<WatchEvent> _recent = [];
+    private List<RecommendationRun> _runs = [];
+
+    protected override async Task OnInitializedAsync()
+    {
+        _totalEvents = await Db.WatchEvents.CountAsync();
+        _totalItems = await Db.MediaItems.CountAsync();
+        _totalViewers = await Db.Viewers.CountAsync();
+
+        _bySource = await Db.WatchEvents
+            .GroupBy(e => e.Source)
+            .Select(g => new SourceStat(
+                g.Key,
+                g.Count(),
+                g.Min(e => e.WatchedAt),
+                g.Max(e => e.WatchedAt)))
+            .OrderByDescending(s => s.Count)
+            .ToListAsync();
+
+        _recent = await Db.WatchEvents
+            .Include(e => e.Viewer)
+            .Include(e => e.MediaItem)
+            .OrderByDescending(e => e.WatchedAt)
+            .Take(50)
+            .ToListAsync();
+
+        _runs = await Db.RecommendationRuns
+            .Include(r => r.Recommendations)
+            .OrderByDescending(r => r.CreatedAt)
+            .Take(20)
+            .ToListAsync();
+    }
+}

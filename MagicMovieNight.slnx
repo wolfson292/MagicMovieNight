@@ -1,0 +1,11 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="src/MagicMovieNight.Core/MagicMovieNight.Core.csproj" />
+    <Project Path="src/MagicMovieNight.Data/MagicMovieNight.Data.csproj" />
+    <Project Path="src/MagicMovieNight.Integrations/MagicMovieNight.Integrations.csproj" />
+    <Project Path="src/MagicMovieNight.Web/MagicMovieNight.Web.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/MagicMovieNight.Tests/MagicMovieNight.Tests.csproj" />
+  </Folder>
+</Solution>

@@ -1,0 +1,237 @@
+@page "/"
+@rendermode InteractiveServer
+@using MagicMovieNight.Data
+@using Microsoft.EntityFrameworkCore
+@inject IRecommendationEngine Engine
+@inject MovieNightDbContext Db
+@inject ILogger<Home> Logger
+
+<PageTitle>Tonight — MagicMovieNight</PageTitle>
+
+<h1>What should we watch?</h1>
+<p class="subtitle">
+    Picked from what this house actually watches — Plex, Trakt, and whatever the
+    streamers have coughed up.
+</p>
+
+<div class="panel">
+    <div class="field">
+        <label>Who's watching</label>
+        <div class="row">
+            <button class="chip @(_selectedViewers.Count == 0 ? "on" : "")"
+                    @onclick="SelectHousehold">
+                Everyone
+            </button>
+            @foreach (var viewer in _viewers)
+            {
+                <button class="chip @(_selectedViewers.Contains(viewer.Id) ? "on" : "")"
+                        @onclick="() => ToggleViewer(viewer.Id)">
+                    @viewer.DisplayName
+                </button>
+            }
+        </div>
+    </div>
+
+    <div class="field">
+        <label for="mood">In the mood for… (optional)</label>
+        <input id="mood" type="text" @bind="_prompt" @bind:event="oninput"
+               placeholder="something funny and under two hours" />
+    </div>
+
+    <div class="row" style="margin-bottom: 1rem;">
+        <div style="flex: 1; min-width: 160px;">
+            <label for="runtime">Max runtime (minutes)</label>
+            <input id="runtime" type="number" min="20" max="400" step="10" @bind="_maxRuntime" />
+        </div>
+        <div style="flex: 1; min-width: 160px;">
+            <label for="count">How many picks</label>
+            <input id="count" type="number" min="1" max="10" @bind="_count" />
+        </div>
+    </div>
+
+    <div class="row">
+        <label style="margin: 0; display: flex; align-items: center; gap: 0.5rem; cursor: pointer;">
+            <input type="checkbox" @bind="_libraryOnly" style="width: auto;" />
+            Only things already on Plex
+        </label>
+    </div>
+
+    <div class="row" style="margin-top: 1.25rem;">
+        <button class="primary" @onclick="GetPicks" disabled="@_busy">
+            @if (_busy)
+            {
+                <span class="spinner"></span> <span>Thinking…</span>
+            }
+            else
+            {
+                <span>Pick something</span>
+            }
+        </button>
+        @if (_run is not null && !_busy)
+        {
+            <span class="muted">
+                @_run.CandidateCount candidates considered in @_run.Duration.TotalSeconds.ToString("N1")s
+            </span>
+        }
+    </div>
+</div>
+
+@if (_error is not null)
+{
+    <div class="error">
+        <strong>That didn't work.</strong>
+        <div class="muted">@_error</div>
+    </div>
+}
+
+@if (_run?.Recommendations.Count > 0)
+{
+    <div class="picks">
+        @foreach (var pick in _run.Recommendations.OrderBy(r => r.Rank))
+        {
+            var item = pick.MediaItem!;
+            <div class="pick">
+                @if (!string.IsNullOrWhiteSpace(item.PosterUrl))
+                {
+                    <img class="poster" src="@item.PosterUrl" alt="@item.Title" loading="lazy" />
+                }
+                else
+                {
+                    <div class="poster empty">@(item.Kind == MediaKind.Movie ? "🎬" : "📺")</div>
+                }
+
+                <div>
+                    <div class="rank">@(pick.Rank == 1 ? "Top pick" : $"#{pick.Rank}")</div>
+                    <h3>@item.DisplayTitle</h3>
+
+                    <div class="meta">
+                        <span class="tag">@(item.Kind == MediaKind.Movie ? "Film" : "Series")</span>
+                        @if (item.RuntimeMinutes is > 0)
+                        {
+                            <span class="tag">@item.RuntimeMinutes min</span>
+                        }
+                        @foreach (var genre in item.Genres.Take(3))
+                        {
+                            <span class="tag">@genre</span>
+                        }
+                        @if (!string.IsNullOrWhiteSpace(pick.WhereToWatch))
+                        {
+                            <span class="tag where">@pick.WhereToWatch</span>
+                        }
+                    </div>
+
+                    <p class="pitch">@pick.Pitch</p>
+
+                    @if (!string.IsNullOrWhiteSpace(pick.BasedOn))
+                    {
+                        <div class="based-on">@pick.BasedOn</div>
+                    }
+
+                    <div class="verdicts">
+                        <button class="chip @(pick.Verdict == Verdict.Watched ? "on" : "")"
+                                @onclick="() => SetVerdict(pick, Verdict.Watched)">
+                            We watched it
+                        </button>
+                        <button class="chip @(pick.Verdict == Verdict.ThumbsUp ? "on" : "")"
+                                @onclick="() => SetVerdict(pick, Verdict.ThumbsUp)">
+                            👍 Good call
+                        </button>
+                        <button class="chip @(pick.Verdict == Verdict.ThumbsDown ? "on" : "")"
+                                @onclick="() => SetVerdict(pick, Verdict.ThumbsDown)">
+                            👎 Not for us
+                        </button>
+                        <button class="chip @(pick.Verdict == Verdict.AlreadySeen ? "on" : "")"
+                                @onclick="() => SetVerdict(pick, Verdict.AlreadySeen)">
+                            Already seen it
+                        </button>
+                    </div>
+                </div>
+            </div>
+        }
+    </div>
+}
+else if (_run is not null && !_busy && _error is null)
+{
+    <div class="notice">
+        Nothing to suggest yet. Check <a href="setup">Setup</a> — history needs to sync
+        before there is anything to reason about.
+    </div>
+}
+
+@code {
+    private List<Viewer> _viewers = [];
+    private readonly HashSet<int> _selectedViewers = [];
+
+    private string? _prompt;
+    private int? _maxRuntime;
+    private int _count = 5;
+    private bool _libraryOnly;
+
+    private bool _busy;
+    private RecommendationRun? _run;
+    private string? _error;
+
+    protected override async Task OnInitializedAsync()
+    {
+        _viewers = await Db.Viewers
+            .Where(v => v.IncludeInHousehold)
+            .OrderBy(v => v.DisplayName)
+            .ToListAsync();
+    }
+
+    private void SelectHousehold() => _selectedViewers.Clear();
+
+    private void ToggleViewer(int id)
+    {
+        if (!_selectedViewers.Remove(id))
+        {
+            _selectedViewers.Add(id);
+        }
+    }
+
+    private async Task GetPicks()
+    {
+        _busy = true;
+        _error = null;
+        _run = null;
+
+        try
+        {
+            var run = await Engine.RecommendAsync(new RecommendationRequest
+            {
+                ViewerIds = _selectedViewers.ToList(),
+                Prompt = _prompt,
+                Count = Math.Clamp(_count, 1, 10),
+                MaxRuntimeMinutes = _maxRuntime,
+                LibraryOnly = _libraryOnly,
+            });
+
+            // The engine persists the run without the navigation properties loaded;
+            // re-read so the cards have posters and genres to render.
+            _run = await Db.RecommendationRuns
+                .Include(r => r.Recommendations)
+                .ThenInclude(rec => rec.MediaItem)
+                .FirstOrDefaultAsync(r => r.Id == run.Id);
+
+            _error = run.Error;
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Recommendation request failed.");
+            _error = ex.Message;
+        }
+        finally
+        {
+            _busy = false;
+        }
+    }
+
+    private async Task SetVerdict(Recommendation pick, Verdict verdict)
+    {
+        // Clicking the active verdict clears it — easier than a separate undo.
+        pick.Verdict = pick.Verdict == verdict ? Verdict.None : verdict;
+        pick.VerdictAt = DateTimeOffset.UtcNow;
+
+        await Db.SaveChangesAsync();
+    }
+}

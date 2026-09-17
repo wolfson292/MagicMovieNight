@@ -1,0 +1,27 @@
+@inherits LayoutComponentBase
+
+<div class="app">
+    <header class="topbar">
+        <a class="brand" href="">
+            <span class="brand-mark">🍿</span>
+            <span class="brand-name">MagicMovieNight</span>
+        </a>
+        <nav class="nav">
+            <NavLink href="" Match="NavLinkMatch.All">Tonight</NavLink>
+            <NavLink href="history">History</NavLink>
+            <NavLink href="import">Import</NavLink>
+            <NavLink href="household">Household</NavLink>
+            <NavLink href="setup">Setup</NavLink>
+        </nav>
+    </header>
+
+    <main class="content">
+        @Body
+    </main>
+</div>
+
+<div id="blazor-error-ui" data-nosnippet>
+    An unhandled error has occurred.
+    <a href="." class="reload">Reload</a>
+    <span class="dismiss">🗙</span>
+</div>

@@ -1,0 +1,139 @@
+@page "/household"
+@rendermode InteractiveServer
+@using MagicMovieNight.Data
+@using Microsoft.EntityFrameworkCore
+@inject MovieNightDbContext Db
+
+<PageTitle>Household — MagicMovieNight</PageTitle>
+
+<h1>Household</h1>
+<p class="subtitle">
+    Viewers are discovered automatically as history syncs. The same person often shows
+    up once per source — merge them so their taste is one profile, not three.
+</p>
+
+<div class="panel">
+    <table>
+        <thead>
+            <tr>
+                <th>Name</th>
+                <th>Watches</th>
+                <th>Known as</th>
+                <th>In household picks</th>
+                <th></th>
+            </tr>
+        </thead>
+        <tbody>
+            @foreach (var row in _rows)
+            {
+                <tr>
+                    <td>@row.Viewer.DisplayName</td>
+                    <td>@row.WatchCount.ToString("N0")</td>
+                    <td class="muted">
+                        @if (row.Viewer.Identities.Count == 0)
+                        {
+                            <text>—</text>
+                        }
+                        else
+                        {
+                            @string.Join(", ", row.Viewer.Identities.Select(i => $"{i.Source}: {i.ExternalId}"))
+                        }
+                    </td>
+                    <td>
+                        <input type="checkbox" checked="@row.Viewer.IncludeInHousehold"
+                               @onchange="e => ToggleInclude(row.Viewer, e)" style="width: auto;" />
+                    </td>
+                    <td>
+                        @if (_mergeSourceId == row.Viewer.Id)
+                        {
+                            <span class="muted">merging into…</span>
+                        }
+                        else if (_mergeSourceId is null)
+                        {
+                            <button class="chip" @onclick="() => _mergeSourceId = row.Viewer.Id">Merge</button>
+                        }
+                        else
+                        {
+                            <button class="chip" @onclick="() => MergeInto(row.Viewer.Id)">Merge into this</button>
+                        }
+                    </td>
+                </tr>
+            }
+        </tbody>
+    </table>
+
+    @if (_mergeSourceId is not null)
+    {
+        <div class="row" style="margin-top: 1rem;">
+            <span class="muted">Pick the viewer to merge into, or</span>
+            <button class="chip" @onclick="() => _mergeSourceId = null">cancel</button>
+        </div>
+    }
+
+    @if (_rows.Count == 0)
+    {
+        <p class="muted">
+            No viewers yet. Run a sync on the <a href="setup">Setup</a> page.
+        </p>
+    }
+</div>
+
+@code {
+    private record Row(Viewer Viewer, int WatchCount);
+
+    private List<Row> _rows = [];
+    private int? _mergeSourceId;
+
+    protected override async Task OnInitializedAsync() => await LoadAsync();
+
+    private async Task LoadAsync()
+    {
+        var viewers = await Db.Viewers
+            .Include(v => v.Identities)
+            .OrderBy(v => v.DisplayName)
+            .ToListAsync();
+
+        var counts = await Db.WatchEvents
+            .GroupBy(e => e.ViewerId)
+            .Select(g => new { ViewerId = g.Key, Count = g.Count() })
+            .ToDictionaryAsync(x => x.ViewerId, x => x.Count);
+
+        _rows = viewers
+            .Select(v => new Row(v, counts.GetValueOrDefault(v.Id)))
+            .ToList();
+    }
+
+    private async Task ToggleInclude(Viewer viewer, ChangeEventArgs e)
+    {
+        viewer.IncludeInHousehold = e.Value is true;
+        await Db.SaveChangesAsync();
+    }
+
+    /// <summary>
+    /// Repoints one viewer's events and identities at another, then deletes the empty
+    /// shell. This is how "scott" from Tautulli and "swolf" from Trakt become one person.
+    /// </summary>
+    private async Task MergeInto(int targetId)
+    {
+        if (_mergeSourceId is null || _mergeSourceId == targetId)
+        {
+            _mergeSourceId = null;
+            return;
+        }
+
+        var sourceId = _mergeSourceId.Value;
+
+        await Db.WatchEvents
+            .Where(e => e.ViewerId == sourceId)
+            .ExecuteUpdateAsync(s => s.SetProperty(e => e.ViewerId, targetId));
+
+        await Db.ViewerIdentities
+            .Where(i => i.ViewerId == sourceId)
+            .ExecuteUpdateAsync(s => s.SetProperty(i => i.ViewerId, targetId));
+
+        await Db.Viewers.Where(v => v.Id == sourceId).ExecuteDeleteAsync();
+
+        _mergeSourceId = null;
+        await LoadAsync();
+    }
+}

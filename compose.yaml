@@ -1,0 +1,66 @@
+# MagicMovieNight — deploy as a Portainer stack on the NUC.
+#
+# Joins the existing `home` bridge so it can reach tautulli:8181 directly and so
+# swag can reverse-proxy it. Postgres stays on a private network — nothing outside
+# this stack needs to talk to it.
+
+services:
+  app:
+    # Swap for `image: ghcr.io/wolfson292/magicmovienight:latest` once CI publishes it;
+    # Portainer cannot build from a local path.
+    build: .
+    image: magicmovienight:latest
+    container_name: magicmovienight
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      ConnectionStrings__MovieNight: "Host=db;Database=magicmovienight;Username=magicmovienight;Password=${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD}"
+      ANTHROPIC_API_KEY: "${ANTHROPIC_API_KEY:?set ANTHROPIC_API_KEY}"
+      Tautulli__BaseUrl: "${TAUTULLI_URL:-http://tautulli:8181}"
+      Tautulli__ApiKey: "${TAUTULLI_API_KEY}"
+      Trakt__ClientId: "${TRAKT_CLIENT_ID}"
+      Trakt__ClientSecret: "${TRAKT_CLIENT_SECRET}"
+      Trakt__User: "${TRAKT_USER:-me}"
+      Tmdb__ApiToken: "${TMDB_API_TOKEN}"
+      Tmdb__WatchRegion: "${TMDB_REGION:-US}"
+      Claude__Model: "${CLAUDE_MODEL:-claude-opus-5}"
+      TZ: "${TZ:-America/New_York}"
+    volumes:
+      # Keeps the Trakt refresh token across redeploys so pairing is a one-time job.
+      - config:/config
+    ports:
+      - "${APP_PORT:-8099}:8080"
+    networks:
+      - home
+      - internal
+
+  db:
+    image: postgres:16-alpine
+    container_name: magicmovienight-db
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: magicmovienight
+      POSTGRES_USER: magicmovienight
+      POSTGRES_PASSWORD: "${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD}"
+    volumes:
+      - db:/var/lib/postgresql/data
+    healthcheck:
+      # The app applies migrations on boot, so it must not start before Postgres is
+      # actually accepting connections.
+      test: ["CMD-SHELL", "pg_isready -U magicmovienight -d magicmovienight"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - internal
+
+volumes:
+  db:
+  config:
+
+networks:
+  home:
+    external: true
+  internal:

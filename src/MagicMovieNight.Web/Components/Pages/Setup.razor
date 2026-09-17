@@ -1,0 +1,253 @@
+@page "/setup"
+@rendermode InteractiveServer
+@using MagicMovieNight.Data
+@using MagicMovieNight.Integrations
+@using MagicMovieNight.Integrations.Ingest
+@using MagicMovieNight.Integrations.Tautulli
+@using MagicMovieNight.Integrations.Tmdb
+@using MagicMovieNight.Integrations.Trakt
+@using Microsoft.EntityFrameworkCore
+@using Microsoft.Extensions.Options
+@inject MovieNightDbContext Db
+@inject IngestionService Ingestion
+@inject TraktAuthService TraktAuth
+@inject TraktClient Trakt
+@inject TautulliClient Tautulli
+@inject TmdbClient Tmdb
+@inject IOptions<ClaudeOptions> ClaudeConfig
+@inject ILogger<Setup> Logger
+
+<PageTitle>Setup — MagicMovieNight</PageTitle>
+
+<h1>Setup</h1>
+<p class="subtitle">What's connected, and what's still missing.</p>
+
+<div class="status-list">
+    <div class="status">
+        <span class="dot @(Tautulli.IsConfigured ? "ok" : "off")"></span>
+        <span class="name">Tautulli</span>
+        <span class="muted">
+            @(Tautulli.IsConfigured
+                ? "Connected — per-person Plex history with completion percentages."
+                : "Not configured. Set Tautulli__BaseUrl and Tautulli__ApiKey.")
+        </span>
+    </div>
+
+    <div class="status">
+        <span class="dot @(Trakt.IsConfigured ? "ok" : "off")"></span>
+        <span class="name">Trakt</span>
+        <span class="muted">
+            @if (Trakt.IsConfigured)
+            {
+                <text>Paired — the unified history spine, including streamer scrobbles.</text>
+            }
+            else if (TraktAuth.IsAuthorized)
+            {
+                <text>Authorized but the client id is missing.</text>
+            }
+            else
+            {
+                <text>Not paired yet.</text>
+            }
+        </span>
+    </div>
+
+    <div class="status">
+        <span class="dot @(Tmdb.IsConfigured ? "ok" : "off")"></span>
+        <span class="name">TMDB</span>
+        <span class="muted">
+            @(Tmdb.IsConfigured
+                ? "Connected — genres, cast, runtimes and streaming availability."
+                : "Not configured. Set Tmdb__ApiToken. Without it, titles stay bare and recommendations get much worse.")
+        </span>
+    </div>
+
+    <div class="status">
+        <span class="dot @(HasClaudeKey ? "ok" : "off")"></span>
+        <span class="name">Claude</span>
+        <span class="muted">
+            @(HasClaudeKey
+                ? $"Configured — using {ClaudeConfig.Value.Model}."
+                : "No API key. Set ANTHROPIC_API_KEY.")
+        </span>
+    </div>
+</div>
+
+@if (!TraktAuth.IsAuthorized)
+{
+    <h2>Pair with Trakt</h2>
+    <div class="panel">
+        @if (_deviceCode is null)
+        {
+            <p class="muted">
+                Trakt has no redirect URI for a container, so pairing uses a device code:
+                start it here, type the code at trakt.tv once, and the refresh token
+                handles it from then on.
+            </p>
+            <button class="primary" @onclick="StartTraktPairing" disabled="@_pairing">
+                Start pairing
+            </button>
+        }
+        else
+        {
+            <p>Go to <a href="@_deviceCode.VerificationUrl" target="_blank" rel="noopener">@_deviceCode.VerificationUrl</a> and enter:</p>
+            <p style="font-size: 2rem; letter-spacing: 0.3em; font-weight: 700; color: var(--accent);">
+                @_deviceCode.UserCode
+            </p>
+            <p class="muted">
+                @if (_pairing)
+                {
+                    <span class="spinner"></span>
+                    <span> Waiting for you to activate it…</span>
+                }
+                else
+                {
+                    <span>@(_pairingResult ?? "Pairing finished.")</span>
+                }
+            </p>
+        }
+    </div>
+}
+
+<h2>History sync</h2>
+<div class="panel">
+    <div class="row">
+        <button class="primary" @onclick="SyncNow" disabled="@_syncing">
+            @if (_syncing)
+            {
+                <span class="spinner"></span> <span>Syncing…</span>
+            }
+            else
+            {
+                <span>Sync now</span>
+            }
+        </button>
+        @if (_syncResult is not null)
+        {
+            <span class="muted">
+                @_syncResult.Imported new, @_syncResult.Skipped already known,
+                @_syncResult.Unresolved couldn't be identified.
+            </span>
+        }
+    </div>
+
+    @if (_states.Count > 0)
+    {
+        <table style="margin-top: 1.25rem;">
+            <thead>
+                <tr>
+                    <th>Source</th>
+                    <th>Last run</th>
+                    <th>Synced through</th>
+                    <th>New last run</th>
+                    <th>Status</th>
+                </tr>
+            </thead>
+            <tbody>
+                @foreach (var state in _states)
+                {
+                    <tr>
+                        <td>@state.Source</td>
+                        <td>@(state.LastRunAt?.ToLocalTime().ToString("MMM d, HH:mm") ?? "never")</td>
+                        <td>@(state.LastSyncedAt?.ToLocalTime().ToString("MMM d, yyyy") ?? "—")</td>
+                        <td>@state.LastRunEventCount</td>
+                        <td>
+                            @if (state.LastError is null)
+                            {
+                                <span style="color: var(--good);">OK</span>
+                            }
+                            else
+                            {
+                                <span style="color: var(--bad);">@state.LastError</span>
+                            }
+                        </td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+    }
+</div>
+
+<h2>What can't be automated</h2>
+<div class="panel">
+    <p class="muted" style="margin-top: 0;">
+        Netflix, Hulu, Prime Video and the Apple TV app publish no viewing-history API.
+        Nothing can poll them. Two ways to get that history in:
+    </p>
+    <ul class="muted">
+        <li>
+            <strong>Trakt browser scrobbler</strong> — the Trakt extension pushes web
+            playback on Netflix, Hulu, Prime and Disney+ straight into Trakt, which
+            this app already reads. Covers everything going forward, but not playback
+            on the Apple TV box.
+        </li>
+        <li>
+            <strong>CSV exports</strong> — download them from each service and upload
+            on the <a href="import">Import</a> page. Best way to backfill years of
+            history in one go.
+        </li>
+    </ul>
+</div>
+
+@code {
+    private List<IngestState> _states = [];
+    private bool _syncing;
+    private IngestResult? _syncResult;
+
+    private TraktDeviceCode? _deviceCode;
+    private bool _pairing;
+    private string? _pairingResult;
+
+    private bool HasClaudeKey =>
+        !string.IsNullOrWhiteSpace(ClaudeConfig.Value.ApiKey)
+        || !string.IsNullOrWhiteSpace(Environment.GetEnvironmentVariable("ANTHROPIC_API_KEY"));
+
+    protected override async Task OnInitializedAsync() => await LoadStatesAsync();
+
+    private async Task LoadStatesAsync() =>
+        _states = await Db.IngestStates.OrderBy(s => s.Source).ToListAsync();
+
+    private async Task SyncNow()
+    {
+        _syncing = true;
+        try
+        {
+            _syncResult = await Ingestion.SyncAllAsync();
+            await LoadStatesAsync();
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Manual sync failed.");
+        }
+        finally
+        {
+            _syncing = false;
+        }
+    }
+
+    private async Task StartTraktPairing()
+    {
+        _pairing = true;
+        try
+        {
+            _deviceCode = await TraktAuth.StartDeviceAuthAsync();
+            StateHasChanged();
+
+            // Polling blocks until the user activates the code or it expires, which is
+            // why the code is rendered before this call is awaited.
+            var success = await TraktAuth.PollForTokenAsync(_deviceCode);
+            _pairingResult = success
+                ? "Paired. Run a sync to pull your Trakt history."
+                : "Pairing failed or timed out. Start again.";
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Trakt pairing failed.");
+            _pairingResult = ex.Message;
+        }
+        finally
+        {
+            _pairing = false;
+        }
+    }
+}

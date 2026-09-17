@@ -1,0 +1,25 @@
+# Build output
+[Bb]in/
+[Oo]bj/
+[Oo]ut/
+artifacts/
+
+# IDE
+.vs/
+.vscode/
+.idea/
+*.user
+*.suo
+*.userosscache
+
+# Secrets — never commit these
+.env
+*.env
+!.env.example
+**/appsettings.Production.json
+**/appsettings.Local.json
+trakt-token.json
+
+# OS
+.DS_Store
+Thumbs.db
