@@ -96,6 +96,51 @@ public class CandidateFilterTests
     }
 
     [Fact]
+    public void AskingForRewatchesLiftsTheExclusions()
+    {
+        var pool = new[] { Candidate(1, "Seen It"), Candidate(2, "Fresh") };
+
+        var kept = CandidateFilter.Apply(
+            pool,
+            new HashSet<int> { 1 },
+            new RecommendationRequest { IncludeAlreadyWatched = true },
+            10);
+
+        Assert.Equal(2, kept.Count);
+        Assert.Contains(kept, c => c.Item.Title == "Seen It");
+    }
+
+    [Fact]
+    public void RewatchesStillRespectTheOtherFilters()
+    {
+        // Lifting the already-seen exclusion must not quietly lift the runtime cap too.
+        var pool = new[]
+        {
+            Candidate(1, "Seen And Short", runtime: 95),
+            Candidate(2, "Seen And Endless", runtime: 240),
+        };
+
+        var kept = CandidateFilter.Apply(
+            pool,
+            new HashSet<int> { 1, 2 },
+            new RecommendationRequest { IncludeAlreadyWatched = true, MaxRuntimeMinutes = 120 },
+            10);
+
+        Assert.Single(kept);
+        Assert.Equal("Seen And Short", kept[0].Item.Title);
+    }
+
+    [Fact]
+    public void ExclusionsApplyByDefault()
+    {
+        // The default must stay "something new" — a rewatch is opt-in, never implicit.
+        var kept = CandidateFilter.Apply(
+            new[] { Candidate(1, "Seen It") }, new HashSet<int> { 1 }, new RecommendationRequest(), 10);
+
+        Assert.Empty(kept);
+    }
+
+    [Fact]
     public void EverythingExcludedYieldsAnEmptyPoolRatherThanThrowing()
     {
         var pool = new[] { Candidate(1, "Seen"), Candidate(2, "Also Seen") };

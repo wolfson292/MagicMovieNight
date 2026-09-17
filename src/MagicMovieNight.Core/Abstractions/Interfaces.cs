@@ -196,4 +196,11 @@ public record RecommendationRequest
 
     /// <summary>Restrict to titles already in the Plex library.</summary>
     public bool LibraryOnly { get; init; }
+
+    /// <summary>
+    /// Allow titles the household has already watched, or marked as already seen.
+    /// Off by default — the usual request is for something new — but a rewatch night
+    /// is a real thing to want, and exclusion should not be a one-way door.
+    /// </summary>
+    public bool IncludeAlreadyWatched { get; init; }
 }

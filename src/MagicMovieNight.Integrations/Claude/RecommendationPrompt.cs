@@ -39,7 +39,9 @@ internal static class RecommendationPrompt
         - Vary the slate. Five near-identical thrillers is a worse answer than five
           real options across different moods.
         - Never recommend something the profile shows they have already finished,
-          unless you are explicitly making a rewatch case and say so.
+          unless you are explicitly making a rewatch case and say so. When the request
+          says rewatches are welcome, treat a well-judged rewatch as a first-class pick
+          rather than a fallback.
 
         How to write the pitch:
 
@@ -114,6 +116,14 @@ internal static class RecommendationPrompt
         if (request.LibraryOnly)
         {
             sb.AppendLine("They only want things already in the Plex library tonight.");
+        }
+
+        if (request.IncludeAlreadyWatched)
+        {
+            sb.AppendLine(
+                "Rewatches are welcome tonight — they have asked for them. Things they "
+                + "have already seen are in the pool on purpose. If you pick one, say "
+                + "plainly that it is a rewatch and make the case for revisiting it now.");
         }
 
         sb.AppendLine($"Pick {request.Count}, best first.");

@@ -53,10 +53,15 @@
         </div>
     </div>
 
-    <div class="row">
+    <div class="row" style="gap: 1.5rem;">
         <label style="margin: 0; display: flex; align-items: center; gap: 0.5rem; cursor: pointer;">
             <input type="checkbox" @bind="_libraryOnly" style="width: auto;" />
             Only things already on Plex
+        </label>
+        <label style="margin: 0; display: flex; align-items: center; gap: 0.5rem; cursor: pointer;"
+               title="Lifts the exclusion on everything you've watched or marked as already seen">
+            <input type="checkbox" @bind="_includeAlreadyWatched" style="width: auto;" />
+            Suggest things we've already watched
         </label>
     </div>
 
@@ -172,7 +177,8 @@
                         @if (pick.Verdict == Verdict.AlreadySeen)
                         {
                             <span class="muted">
-                                Won't be suggested again. Thumbs above if you have a view on it.
+                                Hidden from future picks unless you tick "Suggest things
+                                we've already watched".
                             </span>
                         }
                     </div>
@@ -197,6 +203,7 @@ else if (_run is not null && !_busy && _error is null)
     private int? _maxRuntime;
     private int _count = 5;
     private bool _libraryOnly;
+    private bool _includeAlreadyWatched;
 
     private bool _busy;
     private RecommendationRun? _run;
@@ -289,6 +296,7 @@ else if (_run is not null && !_busy && _error is null)
                 Count = Math.Clamp(_count, 1, 10),
                 MaxRuntimeMinutes = _maxRuntime,
                 LibraryOnly = _libraryOnly,
+                IncludeAlreadyWatched = _includeAlreadyWatched,
             });
 
             // The engine persists the run without the navigation properties loaded;

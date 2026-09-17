@@ -99,6 +99,11 @@ the whole design. It removes the title from future picks, but deliberately inven
 watch date — claiming a film from years ago was watched tonight would corrupt the recency
 weighting, and admitting we do not know is better.
 
+Exclusion is not a one-way door. Ticking **"Suggest things we've already watched"** on the
+Tonight page lifts it for that run, putting everything you have seen back in the pool, and
+tells the model to pitch a rewatch as a rewatch rather than apologise for it. The other
+filters still apply — a rewatch night does not quietly lift the runtime cap.
+
 Your Netflix thumbs import alongside these. They live in `Ratings.csv` inside the **full
 account data export** (netflix.com/account/getmyinfo) — not the viewing-activity page,
 which only has watch dates. Both the current thumbs scale and the pre-2017 five-star
