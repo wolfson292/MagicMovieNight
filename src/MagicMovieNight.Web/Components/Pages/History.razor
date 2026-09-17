@@ -133,15 +133,25 @@
         _totalItems = await Db.MediaItems.CountAsync();
         _totalProfiles = await Db.Profiles.CountAsync();
 
-        _bySource = await Db.WatchEvents
+        // Projected into an anonymous type rather than straight into SourceStat: EF
+        // cannot translate a grouping projected through a record constructor and then
+        // ordered by one of its members, and fails at runtime rather than compile time.
+        // The shape is mapped once the aggregate has come back from the database.
+        var sourceTotals = await Db.WatchEvents
             .GroupBy(e => e.Source)
-            .Select(g => new SourceStat(
-                g.Key,
-                g.Count(),
-                g.Min(e => e.WatchedAt),
-                g.Max(e => e.WatchedAt)))
-            .OrderByDescending(s => s.Count)
+            .Select(g => new
+            {
+                Source = g.Key,
+                Count = g.Count(),
+                Earliest = g.Min(e => e.WatchedAt),
+                Latest = g.Max(e => e.WatchedAt),
+            })
+            .OrderByDescending(x => x.Count)
             .ToListAsync();
+
+        _bySource = sourceTotals
+            .Select(x => new SourceStat(x.Source, x.Count, x.Earliest, x.Latest))
+            .ToList();
 
         _recent = await Db.WatchEvents
             .Include(e => e.Profile)

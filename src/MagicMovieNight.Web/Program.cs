@@ -30,11 +30,16 @@ if (TryPrepareKeyDirectory(keyPath))
         .SetApplicationName("MagicMovieNight");
 }
 
-// Runs history syncs on a timer so the picks are never stale by a week.
-builder.Services.AddHostedService<SyncBackgroundService>();
+// Background work reaches out to Tautulli, Trakt and TMDB, which a test run must not
+// do — the smoke tests only care that pages render against a real schema.
+if (!builder.Environment.IsEnvironment("Testing"))
+{
+    // Runs history syncs on a timer so the picks are never stale by a week.
+    builder.Services.AddHostedService<SyncBackgroundService>();
 
-// Repairs catalog entries left bare when TMDB was unavailable at ingest time.
-builder.Services.AddHostedService<CatalogBackfillService>();
+    // Repairs catalog entries left bare when TMDB was unavailable at ingest time.
+    builder.Services.AddHostedService<CatalogBackfillService>();
+}
 
 // Health endpoint for the container — orchestrators and reverse proxies both want one.
 builder.Services.AddHealthChecks()
@@ -80,3 +85,9 @@ static bool TryPrepareKeyDirectory(string path)
         return false;
     }
 }
+
+/// <summary>
+/// Named so the test host can find this assembly's entry point. Top-level statements
+/// generate an internal Program class, which WebApplicationFactory cannot reach.
+/// </summary>
+public partial class Program;

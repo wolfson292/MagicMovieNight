@@ -14,6 +14,28 @@ env:
 jobs:
   test:
     runs-on: ubuntu-latest
+
+    # The page smoke tests load every page against a real schema, which is the only way
+    # to catch a query that compiles and then fails to translate at runtime. Without a
+    # database they no-op, so the database is the point.
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: magicmovienight
+          POSTGRES_PASSWORD: test
+          POSTGRES_DB: magicmovienight_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+
+    env:
+      TEST_DATABASE_URL: "Host=localhost;Port=5432;Database=magicmovienight_test;Username=magicmovienight;Password=test"
+
     steps:
       - uses: actions/checkout@v7
 
@@ -23,7 +45,7 @@ jobs:
 
       - run: dotnet restore
       - run: dotnet build --no-restore -c Release
-      - run: dotnet test --no-build -c Release --verbosity normal
+      - run: dotnet test --no-build -c Release --logger "console;verbosity=normal"
 
   publish:
     # Only publish from the real branch — a PR build should verify, not ship.
