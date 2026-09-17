@@ -33,6 +33,9 @@ if (TryPrepareKeyDirectory(keyPath))
 // Runs history syncs on a timer so the picks are never stale by a week.
 builder.Services.AddHostedService<SyncBackgroundService>();
 
+// Repairs catalog entries left bare when TMDB was unavailable at ingest time.
+builder.Services.AddHostedService<CatalogBackfillService>();
+
 // Health endpoint for the container — Portainer and swag both want one.
 builder.Services.AddHealthChecks()
     .AddDbContextCheck<MovieNightDbContext>();

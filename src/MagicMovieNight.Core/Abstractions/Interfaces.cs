@@ -137,6 +137,14 @@ public interface ICatalogService
 
     /// <summary>Fills in genres, people, runtime, and streaming availability.</summary>
     Task EnrichAsync(MediaItem item, CancellationToken ct = default);
+
+    /// <summary>
+    /// Enriches catalog entries that are missing metadata, returning how many were
+    /// attempted. Entries go bare whenever TMDB was unreachable or misconfigured at the
+    /// moment they were first seen, and nothing else will revisit them — a title watched
+    /// once and never again would stay bare forever.
+    /// </summary>
+    Task<int> BackfillAsync(int batchSize, CancellationToken ct = default);
 }
 
 /// <summary>Produces the pool of things the household could plausibly watch tonight.</summary>

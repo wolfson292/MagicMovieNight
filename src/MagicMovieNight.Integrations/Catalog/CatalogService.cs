@@ -89,6 +89,51 @@ public class CatalogService(
         return item;
     }
 
+    public async Task<int> BackfillAsync(int batchSize, CancellationToken ct = default)
+    {
+        if (!tmdb.IsConfigured)
+        {
+            return 0;
+        }
+
+        var cutoff = DateTimeOffset.UtcNow - EnrichmentTtl;
+
+        // Anything with no TMDB id or no genres is unenriched. LastEnrichedAt is stamped
+        // on every attempt, successful or not, so a title TMDB genuinely does not know
+        // is retried once a TTL rather than on every pass.
+        var stale = await db.MediaItems
+            .Where(m => (m.TmdbId == null || m.Genres.Count == 0) && m.LastEnrichedAt < cutoff)
+            .OrderByDescending(m => m.Id)
+            .Take(batchSize)
+            .ToListAsync(ct);
+
+        foreach (var item in stale)
+        {
+            ct.ThrowIfCancellationRequested();
+
+            if (item.TmdbId is null)
+            {
+                var match = await tmdb.SearchAsync(item.Title, item.Year, item.Kind, ct);
+                if (match is not null)
+                {
+                    item.TmdbId = match.Id;
+                    item.Year ??= match.Year;
+                }
+            }
+
+            if (item.TmdbId is not null)
+            {
+                await EnrichAsync(item, ct);
+            }
+
+            // Stamped even on a miss, so the batch always makes forward progress.
+            item.LastEnrichedAt = DateTimeOffset.UtcNow;
+            await db.SaveChangesAsync(ct);
+        }
+
+        return stale.Count;
+    }
+
     public async Task EnrichAsync(MediaItem item, CancellationToken ct = default)
     {
         if (!tmdb.IsConfigured || item.TmdbId is null)
