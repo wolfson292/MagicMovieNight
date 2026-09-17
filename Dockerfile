@@ -1,6 +1,10 @@
 # Build on the SDK image, ship on the runtime image — the final layer carries no
 # compiler, no source, and no NuGet cache.
-FROM mcr.microsoft.com/dotnet/sdk:10.0 AS build
+# Pinned deliberately. The floating `sdk:10.0` tag moved from 10.0.202 to 10.0.401 and
+# 10.0.401 does not emit wwwroot/_framework/blazor.web.js for this project, which shipped
+# an image whose UI had no interactivity at all. Bump this on purpose, never by accident,
+# and let the assertion below prove the result before it ever reaches a registry.
+FROM mcr.microsoft.com/dotnet/sdk:10.0.202 AS build
 WORKDIR /src
 
 # Restore before copying the rest so a source-only change does not invalidate the
@@ -17,13 +21,18 @@ COPY . .
 RUN dotnet publish src/MagicMovieNight.Web/MagicMovieNight.Web.csproj \
     -c Release -o /app --no-restore
 
-# TEMPORARY DIAGNOSTIC: blazor.web.js is missing from the published image although a
-# local publish on SDK 10.0.202 includes it. Print what this SDK actually produced.
-RUN echo "=== SDK VERSION: $(dotnet --version) ===" \
- && echo "=== /app/wwwroot ===" && ls -la /app/wwwroot \
- && echo "=== /app/wwwroot/_framework ===" && (ls -la /app/wwwroot/_framework || echo "MISSING") \
- && echo "=== blazor.web.js in endpoints manifest? ===" \
- && (grep -c blazor.web.js /app/MagicMovieNight.Web.staticwebassets.endpoints.json || echo "0 matches")
+# Fail the build rather than ship a UI that silently cannot do anything. Without
+# blazor.web.js every button in the app is inert, and the pages still render perfectly,
+# so nothing short of clicking something reveals the problem.
+RUN test -f /app/wwwroot/_framework/blazor.web.js \
+ || (echo "BUILD FAILED: wwwroot/_framework/blazor.web.js is missing from the publish output." \
+  && echo "The app would start and render, but no button would work." \
+  && echo "SDK in use: $(dotnet --version)" \
+  && exit 1) \
+ && grep -q blazor.web.js /app/MagicMovieNight.Web.staticwebassets.endpoints.json \
+ || (echo "BUILD FAILED: blazor.web.js is not routed in the static asset manifest." \
+  && echo "MapStaticAssets would return 404 for it at runtime." \
+  && exit 1)
 
 FROM mcr.microsoft.com/dotnet/aspnet:10.0 AS runtime
 WORKDIR /app
