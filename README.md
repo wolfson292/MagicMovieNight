@@ -137,6 +137,14 @@ and swag can reverse-proxy it. That network must already exist on the host:
 docker network create home    # only if it does not exist yet
 ```
 
+The app publishes on host port **8100** by default. Check the port is actually free before
+deploying — and note that listing container ports is not enough, because host-network
+containers do not report published ports. Ask the host's network namespace instead:
+
+```bash
+ss -ltn | awk 'NR>1{print $4}'
+```
+
 ### 3. Pair with Trakt
 
 Open the app → **Setup** → **Start pairing**. Trakt has no redirect URI for a container,

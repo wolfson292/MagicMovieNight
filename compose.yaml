@@ -31,7 +31,7 @@ services:
       # Keeps the Trakt refresh token across redeploys so pairing is a one-time job.
       - config:/config
     ports:
-      - "${APP_PORT:-8099}:8080"
+      - "${APP_PORT:-8100}:8080"
     networks:
       - home
       - internal
