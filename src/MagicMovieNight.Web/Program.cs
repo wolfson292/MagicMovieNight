@@ -1,4 +1,5 @@
 using MagicMovieNight.Data;
+using Microsoft.AspNetCore.DataProtection;
 using MagicMovieNight.Integrations;
 using MagicMovieNight.Web.Components;
 using MagicMovieNight.Web.Services;
@@ -16,6 +17,18 @@ builder.Services.AddDbContext<MovieNightDbContext>(options =>
             "No 'MovieNight' connection string. Set ConnectionStrings__MovieNight.")));
 
 builder.Services.AddMovieNightIntegrations(builder.Configuration);
+
+// Without this, data-protection keys live in the container filesystem and are lost on
+// every redeploy — which silently invalidates antiforgery tokens and every open Blazor
+// circuit. The config volume already persists for the Trakt token, so keys go there too.
+var keyPath = builder.Configuration["DataProtection:KeyPath"] ?? "/config/keys";
+
+if (TryPrepareKeyDirectory(keyPath))
+{
+    builder.Services.AddDataProtection()
+        .PersistKeysToFileSystem(new DirectoryInfo(keyPath))
+        .SetApplicationName("MagicMovieNight");
+}
 
 // Runs history syncs on a timer so the picks are never stale by a week.
 builder.Services.AddHostedService<SyncBackgroundService>();
@@ -49,3 +62,18 @@ app.MapRazorComponents<App>()
     .AddInteractiveServerRenderMode();
 
 app.Run();
+
+// Local development has no /config volume, so fall back to the default in-memory
+// behaviour rather than failing to start over a directory that cannot be created.
+static bool TryPrepareKeyDirectory(string path)
+{
+    try
+    {
+        Directory.CreateDirectory(path);
+        return true;
+    }
+    catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+    {
+        return false;
+    }
+}

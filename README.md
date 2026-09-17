@@ -163,6 +163,15 @@ dotnet run --project src/MagicMovieNight.Web
 dotnet test
 ```
 
+The suite is offline and deterministic by default. Two live tests in `ClaudeLiveTests`
+hit the real API and no-op unless a key is present — they verify that the request the
+engine builds is actually accepted, and that the system prompt really does come back from
+cache on a repeat call. To run them:
+
+```bash
+set -a && . ./.env && set +a && dotnet test
+```
+
 Schema changes:
 
 ```bash
@@ -190,9 +199,11 @@ Turn it down in the stack environment if you want:
 
 ## Status
 
-Working and tested: taste profile maths, ratings weighting, CSV parsing (viewing and
-ratings), EF schema, the full build. 39 tests.
+**Verified end to end.** The image builds, the stack boots, both migrations apply, and
+`/health` returns 200. The live Claude integration is confirmed against the real API:
+the request shape is accepted, structured output parses, picks stay inside the candidate
+pool, and prompt caching measurably works — a repeat call read back all 1,237 system-prompt
+tokens instead of paying for them again. 41 tests.
 
-Not yet verified against live services — Trakt pairing, a real Tautulli sync, and the
-Docker image build all need credentials and a running daemon to exercise. See the
-deployment checklist in the project notes.
+**Still unverified:** Trakt pairing and a real Tautulli sync, both of which need
+credentials this project does not have yet.

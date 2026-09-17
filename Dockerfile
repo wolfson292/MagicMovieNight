@@ -5,7 +5,7 @@ WORKDIR /src
 
 # Restore before copying the rest so a source-only change does not invalidate the
 # (slow) restore layer.
-COPY MagicMovieNight.sln ./
+COPY MagicMovieNight.slnx ./
 COPY src/MagicMovieNight.Core/*.csproj src/MagicMovieNight.Core/
 COPY src/MagicMovieNight.Data/*.csproj src/MagicMovieNight.Data/
 COPY src/MagicMovieNight.Integrations/*.csproj src/MagicMovieNight.Integrations/

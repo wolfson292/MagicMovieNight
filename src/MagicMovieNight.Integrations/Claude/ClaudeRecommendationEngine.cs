@@ -158,30 +158,7 @@ public class ClaudeRecommendationEngine(
         RecommendationRun run,
         CancellationToken ct)
     {
-        var userTurn = RecommendationPrompt.BuildUserTurn(profile, candidates, request);
-
-        var parameters = new MessageCreateParams
-        {
-            Model = _options.Model,
-            MaxTokens = 16000,
-            // The system prompt is byte-identical across runs, so cache it and pay for
-            // it once rather than on every movie night.
-            System = new List<TextBlockParam>
-            {
-                new()
-                {
-                    Text = RecommendationPrompt.System,
-                    CacheControl = new CacheControlEphemeral(),
-                },
-            },
-            Thinking = new ThinkingConfigAdaptive(),
-            OutputConfig = new OutputConfig
-            {
-                Effort = ParseEffort(_options.Effort),
-                Format = new JsonOutputFormat { Schema = ResponseSchema },
-            },
-            Messages = [new() { Role = Role.User, Content = userTurn }],
-        };
+        var parameters = BuildRequest(profile, candidates, request, _options);
 
         var response = await client.Messages.Create(parameters, cancellationToken: ct);
 
@@ -208,6 +185,45 @@ public class ClaudeRecommendationEngine(
 
         return parsed?.Picks ?? [];
     }
+
+    /// <summary>
+    /// Builds the request. Separated from the call so the live smoke test can verify
+    /// the exact shape the engine sends, rather than a copy of it that can drift.
+    /// </summary>
+    internal static MessageCreateParams BuildRequest(
+        TasteProfile profile,
+        IReadOnlyList<Candidate> candidates,
+        RecommendationRequest request,
+        ClaudeOptions options) =>
+        new()
+        {
+            Model = options.Model,
+            MaxTokens = 16000,
+            // The system prompt is byte-identical across runs, so cache it and pay for
+            // it once rather than on every movie night.
+            System = new List<TextBlockParam>
+            {
+                new()
+                {
+                    Text = RecommendationPrompt.System,
+                    CacheControl = new CacheControlEphemeral(),
+                },
+            },
+            Thinking = new ThinkingConfigAdaptive(),
+            OutputConfig = new OutputConfig
+            {
+                Effort = ParseEffort(options.Effort),
+                Format = new JsonOutputFormat { Schema = ResponseSchema },
+            },
+            Messages =
+            [
+                new()
+                {
+                    Role = Role.User,
+                    Content = RecommendationPrompt.BuildUserTurn(profile, candidates, request),
+                },
+            ],
+        };
 
     private static string DescribeAvailability(MediaItem item) =>
         item.InLibrary
