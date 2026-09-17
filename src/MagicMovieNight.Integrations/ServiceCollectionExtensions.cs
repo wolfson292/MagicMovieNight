@@ -16,6 +16,14 @@ namespace MagicMovieNight.Integrations;
 
 public static class ServiceCollectionExtensions
 {
+    /// <summary>
+    /// Trakt rejects requests with no User-Agent outright — 403, with no hint as to why.
+    /// HttpClient sends none by default, which is why this worked from curl and failed
+    /// from the app. Sent to every outbound API as ordinary good manners.
+    /// </summary>
+    internal const string UserAgent =
+        "MagicMovieNight/1.0 (+https://github.com/wolfson292/MagicMovieNight)";
+
     public static IServiceCollection AddMovieNightIntegrations(
         this IServiceCollection services,
         IConfiguration config)
@@ -52,6 +60,7 @@ public static class ServiceCollectionExtensions
             var baseUrl = options.BaseUrl.EndsWith('/') ? options.BaseUrl : options.BaseUrl + "/";
             http.BaseAddress = new Uri(baseUrl);
             http.DefaultRequestHeaders.Add("Accept", "application/json");
+            http.DefaultRequestHeaders.UserAgent.ParseAdd(UserAgent);
 
             if (!string.IsNullOrWhiteSpace(options.ApiToken))
             {
@@ -98,6 +107,7 @@ public static class ServiceCollectionExtensions
             http.BaseAddress = new Uri(options.BaseUrl);
             http.DefaultRequestHeaders.Add("trakt-api-version", "2");
             http.DefaultRequestHeaders.Add("Accept", "application/json");
+            http.DefaultRequestHeaders.UserAgent.ParseAdd(UserAgent);
 
             if (!string.IsNullOrWhiteSpace(options.ClientId))
             {

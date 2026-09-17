@@ -81,6 +81,14 @@
 {
     <h2>Pair with Trakt</h2>
     <div class="panel">
+        @if (_deviceCode is null && _pairingResult is not null)
+        {
+            <div class="error">
+                <strong>Pairing didn't start.</strong>
+                <div class="muted">@_pairingResult</div>
+            </div>
+        }
+
         @if (_deviceCode is null)
         {
             <p class="muted">
