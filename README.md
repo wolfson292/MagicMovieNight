@@ -118,14 +118,24 @@ cast, runtime or streaming availability — and recommendations get noticeably w
 
 ### 2. Deploy
 
+CI publishes `ghcr.io/wolfson292/magicmovienight:latest` on every push to `main`, and the
+package is public — the NUC pulls it with no registry login.
+
 ```bash
 cp .env.example .env    # fill it in
 docker compose up -d
 ```
 
 On the NUC, deploy as a Portainer stack instead and paste the variables into the stack's
-environment editor. The stack joins the existing `home` bridge network, so `tautulli:8181`
-resolves directly and swag can reverse-proxy it.
+environment editor. `compose.yaml` deliberately has no `build:` key, because Portainer has
+no build context and a build directive makes the file undeployable there.
+
+The stack joins the existing `home` bridge network, so `tautulli:8181` resolves directly
+and swag can reverse-proxy it. That network must already exist on the host:
+
+```bash
+docker network create home    # only if it does not exist yet
+```
 
 ### 3. Pair with Trakt
 
@@ -157,6 +167,12 @@ one upload.
 ```bash
 docker compose up -d db
 dotnet run --project src/MagicMovieNight.Web
+```
+
+To run the whole stack from source rather than the published image:
+
+```bash
+docker compose -f compose.yaml -f compose.dev.yaml up -d --build
 ```
 
 ```bash
