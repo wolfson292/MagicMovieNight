@@ -70,6 +70,7 @@ public static class ServiceCollectionExtensions
         services.AddScoped<TasteProfileService>();
         services.AddScoped<IRecommendationEngine, ClaudeRecommendationEngine>();
         services.AddScoped<IngestionService>();
+        services.AddScoped<RatingService>();
 
         services.AddScoped<IHistorySource>(sp => sp.GetRequiredService<TautulliClient>());
         services.AddScoped<IHistorySource>(sp => sp.GetRequiredService<TraktClient>());
@@ -81,6 +82,8 @@ public static class ServiceCollectionExtensions
         services.AddScoped<IHistoryImporter, NetflixCsvImporter>();
         services.AddScoped<IHistoryImporter, PrimeVideoCsvImporter>();
         services.AddScoped<IHistoryImporter, HuluCsvImporter>();
+
+        services.AddScoped<IRatingImporter, NetflixRatingsCsvImporter>();
 
         return services;
 

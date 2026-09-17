@@ -23,6 +23,10 @@ internal static class RecommendationPrompt
 
         - Weight recent viewing far more heavily than old viewing. What they finished
           last month matters more than what they finished three years ago.
+        - Explicit ratings outrank watch history. Having watched something only says
+          they watched it; a thumbs-down says what they thought. Treat a thumbs-down
+          as evidence about that whole kind of thing — its genre, its cast, its tone —
+          and never recommend something close to it without saying why it is different.
         - A title someone abandoned partway is a negative signal about that kind of
           thing, not just that title.
         - Respect the runtime reality. If the profile says they typically finish
@@ -45,6 +49,10 @@ internal static class RecommendationPrompt
           they have watched.
         - No spoilers beyond what a trailer would show.
         - Do not open every pitch the same way.
+
+        Episode ratings are narrower than title ratings. Someone disliking one episode
+        of a show they otherwise rate highly is a comment on that episode, not the
+        series — do not drop a show they love over one bad night.
 
         The "basedOn" field must cite concrete evidence from the profile — the titles,
         genres, or people that justify this pick. Be specific: "you finished all three
@@ -69,6 +77,11 @@ internal static class RecommendationPrompt
 
         sb.AppendLine($"- Split: {profile.ShowBias:P0} series, {1 - profile.ShowBias:P0} films");
 
+        if (profile.TotalRatings > 0)
+        {
+            sb.AppendLine($"- Explicit ratings on record: {profile.TotalRatings:N0}");
+        }
+
         if (profile.TypicalMovieRuntime is not null)
         {
             sb.AppendLine($"- Typical film they finish: {profile.TypicalMovieRuntime} minutes");
@@ -76,10 +89,12 @@ internal static class RecommendationPrompt
 
         AppendTagSection(sb, "Genres they actually watch (weighted, most-watched first)", profile.TopGenres);
         AppendTagSection(sb, "Directors, creators and actors that recur", profile.TopPeople);
+        AppendListSection(sb, "Rated up — they told us they liked these", profile.Loved);
         AppendListSection(sb, "Recently finished", profile.RecentlyLoved);
         AppendListSection(sb, "Started and abandoned — treat as negative signal", profile.Abandoned);
         AppendListSection(sb, "Series in progress with episodes remaining", profile.InProgress);
-        AppendListSection(sb, "Explicitly disliked — do not recommend these or close cousins", profile.Disliked);
+        AppendListSection(sb, "Rated down — do not recommend these or close cousins", profile.Disliked);
+        AppendListSection(sb, "Episode-level ratings", profile.EpisodeRatings);
 
         sb.AppendLine();
         sb.AppendLine("## Tonight");

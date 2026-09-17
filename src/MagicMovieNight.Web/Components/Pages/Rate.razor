@@ -1,0 +1,284 @@
+@page "/rate"
+@rendermode InteractiveServer
+@using MagicMovieNight.Data
+@using MagicMovieNight.Integrations.Ingest
+@using MagicMovieNight.Web.Components.Shared
+@using Microsoft.EntityFrameworkCore
+@inject MovieNightDbContext Db
+@inject RatingService Ratings
+
+<PageTitle>Rate — MagicMovieNight</PageTitle>
+
+<h1>Rate what you've watched</h1>
+<p class="subtitle">
+    Ratings carry more weight than watch history — watching something only says you
+    watched it. A thumbs-down here actively steers recommendations away from that whole
+    kind of thing.
+</p>
+
+<div class="panel">
+    <div class="row">
+        <div style="flex: 1; min-width: 180px;">
+            <label for="viewer">Rating as</label>
+            <select id="viewer" @bind="ViewerId">
+                @foreach (var viewer in _viewers)
+                {
+                    <option value="@viewer.Id">@viewer.DisplayName</option>
+                }
+            </select>
+        </div>
+        <div style="flex: 2; min-width: 220px;">
+            <label for="search">Find a title</label>
+            <input id="search" type="text" @bind="Search" @bind:event="oninput"
+                   placeholder="search everything you've watched" />
+        </div>
+    </div>
+
+    <div class="row" style="margin-top: 1rem;">
+        <button class="chip @(_filter == Filter.Recent ? "on" : "")"
+                @onclick="() => SetFilter(Filter.Recent)">Recently watched</button>
+        <button class="chip @(_filter == Filter.Unrated ? "on" : "")"
+                @onclick="() => SetFilter(Filter.Unrated)">Not yet rated</button>
+        <button class="chip @(_filter == Filter.Rated ? "on" : "")"
+                @onclick="() => SetFilter(Filter.Rated)">Already rated</button>
+    </div>
+</div>
+
+@if (_viewers.Count == 0)
+{
+    <div class="notice">
+        No viewers yet — sync some history on the <a href="setup">Setup</a> page first.
+    </div>
+}
+else if (_rows.Count == 0)
+{
+    <div class="notice">Nothing matches.</div>
+}
+else
+{
+    <div class="panel" style="margin-top: 1.5rem;">
+        @foreach (var row in _rows)
+        {
+            <div class="rate-row">
+                <div class="title">
+                    <strong>@row.Item.DisplayTitle</strong>
+                    <span class="muted">
+                        · @(row.Item.Kind == MediaKind.Movie ? "film" : "series")
+                        @if (row.LastWatched is not null)
+                        {
+                            <text> · last watched @row.LastWatched.Value.ToLocalTime().ToString("MMM d, yyyy")</text>
+                        }
+                    </span>
+                    @if (row.Item.Kind == MediaKind.Show && row.EpisodeCount > 0)
+                    {
+                        <div>
+                            <button class="link" @onclick="() => ToggleEpisodes(row.Item.Id)">
+                                @(_expanded.Contains(row.Item.Id)
+                                    ? "hide episodes"
+                                    : $"rate individual episodes ({row.EpisodeCount} watched)")
+                            </button>
+                        </div>
+                    }
+                </div>
+                <ThumbButtons Value="row.Rating"
+                              OnRate="v => RateTitle(row.Item.Id, v)" />
+            </div>
+
+            @if (_expanded.Contains(row.Item.Id))
+            {
+                <div class="episode-rows">
+                    @foreach (var ep in EpisodesFor(row.Item.Id))
+                    {
+                        <div class="rate-row">
+                            <div class="title">
+                                S@(ep.Season)@(ep.Episode is null ? "" : $"E{ep.Episode}")
+                                <span class="muted"> · watched @ep.WatchedAt.ToLocalTime().ToString("MMM d, yyyy")</span>
+                            </div>
+                            <ThumbButtons Value="ep.Rating"
+                                          OnRate="v => RateEpisode(row.Item.Id, ep.Season, ep.Episode, v)" />
+                        </div>
+                    }
+                </div>
+            }
+        }
+    </div>
+}
+
+@code {
+    private enum Filter { Recent, Unrated, Rated }
+
+    private record Row(MediaItem Item, DateTimeOffset? LastWatched, RatingValue? Rating, int EpisodeCount);
+
+    private record EpisodeRow(int Season, int? Episode, DateTimeOffset WatchedAt, RatingValue? Rating);
+
+    private const int PageSize = 60;
+
+    private List<Viewer> _viewers = [];
+    private List<Row> _rows = [];
+    private readonly Dictionary<int, List<EpisodeRow>> _episodes = [];
+    private readonly HashSet<int> _expanded = [];
+
+    private int _viewerId;
+    private string _search = string.Empty;
+    private Filter _filter = Filter.Recent;
+
+    private int ViewerId
+    {
+        get => _viewerId;
+        set
+        {
+            _viewerId = value;
+            _expanded.Clear();
+            _episodes.Clear();
+            _ = LoadRowsAsync();
+        }
+    }
+
+    private string Search
+    {
+        get => _search;
+        set
+        {
+            _search = value;
+            _ = LoadRowsAsync();
+        }
+    }
+
+    protected override async Task OnInitializedAsync()
+    {
+        _viewers = await Db.Viewers.OrderBy(v => v.DisplayName).ToListAsync();
+        _viewerId = _viewers.FirstOrDefault()?.Id ?? 0;
+
+        if (_viewerId != 0)
+        {
+            await LoadRowsAsync();
+        }
+    }
+
+    private async Task SetFilter(Filter filter)
+    {
+        _filter = filter;
+        await LoadRowsAsync();
+    }
+
+    private async Task LoadRowsAsync()
+    {
+        if (_viewerId == 0)
+        {
+            return;
+        }
+
+        // Only titles this viewer has actually watched are offered — rating something
+        // you have not seen is not a signal worth collecting.
+        var watched = Db.WatchEvents
+            .Where(e => e.ViewerId == _viewerId && e.MediaItem != null);
+
+        if (!string.IsNullOrWhiteSpace(_search))
+        {
+            var term = _search.Trim().ToLower();
+            watched = watched.Where(e => e.MediaItem!.Title.ToLower().Contains(term));
+        }
+
+        var grouped = await watched
+            .GroupBy(e => e.MediaItemId)
+            .Select(g => new
+            {
+                MediaItemId = g.Key,
+                LastWatched = g.Max(e => e.WatchedAt),
+                EpisodeCount = g.Count(e => e.SeasonNumber != null),
+            })
+            .OrderByDescending(x => x.LastWatched)
+            .Take(PageSize * 3)
+            .ToListAsync();
+
+        var itemIds = grouped.Select(g => g.MediaItemId).ToList();
+
+        var items = await Db.MediaItems
+            .Where(m => itemIds.Contains(m.Id))
+            .ToDictionaryAsync(m => m.Id);
+
+        var ratings = await Db.Ratings
+            .Where(r => r.ViewerId == _viewerId
+                && itemIds.Contains(r.MediaItemId)
+                && r.SeasonNumber == null)
+            .ToDictionaryAsync(r => r.MediaItemId, r => r.Value);
+
+        _rows = grouped
+            .Where(g => items.ContainsKey(g.MediaItemId))
+            .Select(g => new Row(
+                items[g.MediaItemId],
+                g.LastWatched,
+                ratings.TryGetValue(g.MediaItemId, out var v) ? v : null,
+                g.EpisodeCount))
+            .Where(r => _filter switch
+            {
+                Filter.Unrated => r.Rating is null,
+                Filter.Rated => r.Rating is not null,
+                _ => true,
+            })
+            .Take(PageSize)
+            .ToList();
+
+        StateHasChanged();
+    }
+
+    private async Task ToggleEpisodes(int mediaItemId)
+    {
+        if (!_expanded.Add(mediaItemId))
+        {
+            _expanded.Remove(mediaItemId);
+            return;
+        }
+
+        await LoadEpisodesAsync(mediaItemId);
+    }
+
+    private async Task LoadEpisodesAsync(int mediaItemId)
+    {
+        var watched = await Db.WatchEvents
+            .Where(e => e.ViewerId == _viewerId
+                && e.MediaItemId == mediaItemId
+                && e.SeasonNumber != null)
+            .GroupBy(e => new { e.SeasonNumber, e.EpisodeNumber })
+            .Select(g => new
+            {
+                Season = g.Key.SeasonNumber!.Value,
+                Episode = g.Key.EpisodeNumber,
+                WatchedAt = g.Max(e => e.WatchedAt),
+            })
+            .OrderByDescending(x => x.Season)
+            .ThenByDescending(x => x.Episode)
+            .Take(200)
+            .ToListAsync();
+
+        var ratings = await Db.Ratings
+            .Where(r => r.ViewerId == _viewerId
+                && r.MediaItemId == mediaItemId
+                && r.SeasonNumber != null)
+            .ToListAsync();
+
+        _episodes[mediaItemId] = watched
+            .Select(w => new EpisodeRow(
+                w.Season,
+                w.Episode,
+                w.WatchedAt,
+                ratings.FirstOrDefault(r =>
+                    r.SeasonNumber == w.Season && r.EpisodeNumber == w.Episode)?.Value))
+            .ToList();
+    }
+
+    private List<EpisodeRow> EpisodesFor(int mediaItemId) =>
+        _episodes.TryGetValue(mediaItemId, out var eps) ? eps : [];
+
+    private async Task RateTitle(int mediaItemId, RatingValue value)
+    {
+        await Ratings.SetAsync(_viewerId, mediaItemId, value);
+        await LoadRowsAsync();
+    }
+
+    private async Task RateEpisode(int mediaItemId, int season, int? episode, RatingValue value)
+    {
+        await Ratings.SetAsync(_viewerId, mediaItemId, value, season, episode);
+        await LoadEpisodesAsync(mediaItemId);
+    }
+}

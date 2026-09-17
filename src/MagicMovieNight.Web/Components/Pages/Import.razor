@@ -4,8 +4,10 @@
 @using MagicMovieNight.Integrations.Ingest
 @using Microsoft.EntityFrameworkCore
 @inject MovieNightDbContext Db
-@inject IEnumerable<IHistoryImporter> Importers
+@inject IEnumerable<IHistoryImporter> HistoryImporters
+@inject IEnumerable<IRatingImporter> RatingImporters
 @inject IngestionService Ingestion
+@inject RatingService Ratings
 @inject ILogger<Import> Logger
 
 <PageTitle>Import — MagicMovieNight</PageTitle>
@@ -18,11 +20,19 @@
 <div class="panel">
     <div class="field">
         <label for="importer">Which export is this?</label>
-        <select id="importer" @bind="_selectedSource">
-            @foreach (var importer in Importers)
-            {
-                <option value="@importer.Source">@importer.DisplayName</option>
-            }
+        <select id="importer" @bind="_selectedIndex">
+            <optgroup label="Viewing history">
+                @foreach (var option in _options.Where(o => !o.IsRatings))
+                {
+                    <option value="@option.Index">@option.DisplayName</option>
+                }
+            </optgroup>
+            <optgroup label="Ratings">
+                @foreach (var option in _options.Where(o => o.IsRatings))
+                {
+                    <option value="@option.Index">@option.DisplayName</option>
+                }
+            </optgroup>
         </select>
     </div>
 
@@ -69,7 +79,8 @@
 @if (_result is not null)
 {
     <div class="notice">
-        Imported <strong>@_result.Imported</strong> new watches.
+        Imported <strong>@_result.Imported</strong> new
+        @(Selected.IsRatings ? "ratings" : "watches").
         @_result.Skipped were already known,
         and @_result.Unresolved couldn't be matched to a film or show.
     </div>
@@ -87,9 +98,17 @@
         </thead>
         <tbody>
             <tr>
-                <td>Netflix</td>
+                <td>Netflix — viewing</td>
                 <td>netflix.com/viewingactivity → "Download all" (per profile)</td>
                 <td>Instant</td>
+            </tr>
+            <tr>
+                <td>Netflix — ratings</td>
+                <td>
+                    netflix.com/account/getmyinfo → request your data, then upload
+                    <code>CONTENT_INTERACTION/Ratings.csv</code>
+                </td>
+                <td>A day or two</td>
             </tr>
             <tr>
                 <td>Prime Video</td>
@@ -110,9 +129,14 @@
 </div>
 
 @code {
+    private record ImportOption(int Index, string DisplayName, bool IsRatings, object Importer);
+
     private List<Viewer> _viewers = [];
-    private WatchSource _selectedSource = WatchSource.NetflixCsv;
+    private List<ImportOption> _options = [];
+    private int _selectedIndex;
     private int _viewerId;
+
+    private ImportOption Selected => _options[_selectedIndex];
     private IBrowserFile? _file;
     private bool _busy;
     private IngestResult? _result;
@@ -124,7 +148,14 @@
     protected override async Task OnInitializedAsync()
     {
         _viewers = await Db.Viewers.OrderBy(v => v.DisplayName).ToListAsync();
-        _selectedSource = Importers.First().Source;
+
+        _options =
+        [
+            .. HistoryImporters.Select((i, n) => new ImportOption(n, i.DisplayName, false, i)),
+        ];
+
+        _options.AddRange(RatingImporters.Select((i, n) =>
+            new ImportOption(_options.Count + n, i.DisplayName, true, i)));
     }
 
     private void OnFileSelected(InputFileChangeEventArgs e)
@@ -147,8 +178,6 @@
 
         try
         {
-            var importer = Importers.First(i => i.Source == _selectedSource);
-
             // Copy to memory first: the browser file stream is not seekable, and
             // CsvHelper wants to read the header before anything else.
             using var buffer = new MemoryStream();
@@ -159,7 +188,12 @@
 
             buffer.Position = 0;
 
-            _result = await Ingestion.ImportAsync(importer, buffer, _viewerId);
+            _result = Selected.Importer switch
+            {
+                IRatingImporter ratings => await Ratings.ImportAsync(ratings, buffer, _viewerId),
+                IHistoryImporter history => await Ingestion.ImportAsync(history, buffer, _viewerId),
+                _ => throw new InvalidOperationException("Unknown importer type."),
+            };
         }
         catch (Exception ex)
         {

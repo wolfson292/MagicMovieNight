@@ -346,3 +346,77 @@ th {
     right: 1rem;
     top: 0.75rem;
 }
+
+/* --- Ratings --- */
+
+.thumbs {
+    display: inline-flex;
+    gap: 0.35rem;
+}
+
+button.thumb {
+    padding: 0.3rem 0.7rem;
+    font-size: 0.95rem;
+    line-height: 1.2;
+    filter: grayscale(1) opacity(0.55);
+}
+
+button.thumb:hover:not(:disabled) {
+    filter: none;
+}
+
+button.thumb.on {
+    filter: none;
+    background: var(--accent);
+    border-color: var(--accent);
+}
+
+button.thumb.on.down {
+    background: var(--bad);
+    border-color: var(--bad);
+}
+
+.rate-row {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+    padding: 0.7rem 0;
+    border-bottom: 1px solid var(--line);
+}
+
+.rate-row:last-child {
+    border-bottom: none;
+}
+
+.rate-row .title {
+    flex: 1;
+    min-width: 0;
+}
+
+.rate-row .title strong {
+    font-weight: 500;
+}
+
+.episode-rows {
+    margin: 0.5rem 0 0.75rem 1.5rem;
+    padding-left: 1rem;
+    border-left: 2px solid var(--line);
+}
+
+.episode-rows .rate-row {
+    padding: 0.45rem 0;
+    font-size: 0.9rem;
+}
+
+button.link {
+    background: none;
+    border: none;
+    color: var(--accent);
+    padding: 0;
+    font-size: 0.85rem;
+    text-decoration: underline;
+}
+
+button.link:hover:not(:disabled) {
+    background: none;
+}

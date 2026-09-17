@@ -1,8 +1,11 @@
 @page "/"
 @rendermode InteractiveServer
 @using MagicMovieNight.Data
+@using MagicMovieNight.Integrations.Ingest
+@using MagicMovieNight.Web.Components.Shared
 @using Microsoft.EntityFrameworkCore
 @inject IRecommendationEngine Engine
+@inject RatingService Ratings
 @inject MovieNightDbContext Db
 @inject ILogger<Home> Logger
 
@@ -86,6 +89,19 @@
 
 @if (_run?.Recommendations.Count > 0)
 {
+    @if (_viewers.Count > 1)
+    {
+        <div class="row" style="margin-top: 1.5rem;">
+            <span class="muted">Ratings apply to</span>
+            <select @bind="_ratingViewerId" style="width: auto;">
+                @foreach (var viewer in _viewers)
+                {
+                    <option value="@viewer.Id">@viewer.DisplayName</option>
+                }
+            </select>
+        </div>
+    }
+
     <div class="picks">
         @foreach (var pick in _run.Recommendations.OrderBy(r => r.Rank))
         {
@@ -126,6 +142,16 @@
                     {
                         <div class="based-on">@pick.BasedOn</div>
                     }
+
+                    <div class="verdicts" style="margin-bottom: 0.6rem;">
+                        <ThumbButtons Value="RatingFor(item.Id)"
+                                      Disabled="@(_ratingViewerId == 0)"
+                                      OnRate="v => RatePick(item.Id, v)" />
+                        @if (_ratingViewerId == 0)
+                        {
+                            <span class="muted">Add a viewer to rate</span>
+                        }
+                    </div>
 
                     <div class="verdicts">
                         <button class="chip @(pick.Verdict == Verdict.Watched ? "on" : "")"
@@ -171,12 +197,20 @@ else if (_run is not null && !_busy && _error is null)
     private RecommendationRun? _run;
     private string? _error;
 
+    /// <summary>Whose opinion a thumb click records. Picks are shown to the household,
+    /// but a rating always belongs to one person.</summary>
+    private int _ratingViewerId;
+
+    private Dictionary<int, RatingValue> _ratingsByItem = [];
+
     protected override async Task OnInitializedAsync()
     {
         _viewers = await Db.Viewers
             .Where(v => v.IncludeInHousehold)
             .OrderBy(v => v.DisplayName)
             .ToListAsync();
+
+        _ratingViewerId = _viewers.FirstOrDefault()?.Id ?? 0;
     }
 
     private void SelectHousehold() => _selectedViewers.Clear();
@@ -187,6 +221,52 @@ else if (_run is not null && !_busy && _error is null)
         {
             _selectedViewers.Add(id);
         }
+
+        // Picking exactly one person to watch makes them the obvious owner of any
+        // rating given on the results.
+        if (_selectedViewers.Count == 1)
+        {
+            _ratingViewerId = _selectedViewers.Single();
+        }
+    }
+
+    private RatingValue? RatingFor(int mediaItemId) =>
+        _ratingsByItem.TryGetValue(mediaItemId, out var value) ? value : null;
+
+    private async Task RatePick(int mediaItemId, RatingValue value)
+    {
+        if (_ratingViewerId == 0)
+        {
+            return;
+        }
+
+        var result = await Ratings.SetAsync(_ratingViewerId, mediaItemId, value);
+
+        if (result is null)
+        {
+            _ratingsByItem.Remove(mediaItemId);
+        }
+        else
+        {
+            _ratingsByItem[mediaItemId] = result.Value;
+        }
+    }
+
+    private async Task LoadRatingsForRunAsync()
+    {
+        if (_run is null || _ratingViewerId == 0)
+        {
+            _ratingsByItem = [];
+            return;
+        }
+
+        var itemIds = _run.Recommendations.Select(r => r.MediaItemId).ToList();
+
+        _ratingsByItem = await Db.Ratings
+            .Where(r => r.ViewerId == _ratingViewerId
+                && itemIds.Contains(r.MediaItemId)
+                && r.SeasonNumber == null)
+            .ToDictionaryAsync(r => r.MediaItemId, r => r.Value);
     }
 
     private async Task GetPicks()
@@ -214,6 +294,8 @@ else if (_run is not null && !_busy && _error is null)
                 .FirstOrDefaultAsync(r => r.Id == run.Id);
 
             _error = run.Error;
+
+            await LoadRatingsForRunAsync();
         }
         catch (Exception ex)
         {

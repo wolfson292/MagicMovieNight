@@ -10,6 +10,10 @@ namespace MagicMovieNight.Core.Taste;
 /// every event decays on a half-life. Second, fidelity weighting: a Tautulli event
 /// that says "watched 96% on the living room Apple TV" is worth more than a Netflix
 /// CSV row that says only "you saw something called Bodyguard that day".
+///
+/// Explicit ratings sit on top of both. Having watched something says only that it was
+/// watched; a thumbs-down says what they actually thought, so ratings push genre and
+/// people affinity in either direction rather than merely adding to it.
 /// </summary>
 public static class TasteProfileBuilder
 {
@@ -23,11 +27,14 @@ public static class TasteProfileBuilder
     private const int TopPeopleCount = 20;
     private const int RecentlyLovedCount = 25;
     private const int AbandonedCount = 10;
+    private const int RatedTitleCount = 40;
+    private const int RatedEpisodeCount = 20;
 
     public static TasteProfile Build(
         string subject,
         IReadOnlyList<int> viewerIds,
         IReadOnlyList<WatchEvent> events,
+        IReadOnlyList<Rating> ratings,
         IReadOnlyList<string> disliked,
         IReadOnlyList<string> inProgress,
         DateTimeOffset? now = null)
@@ -60,6 +67,29 @@ public static class TasteProfileBuilder
             }
         }
 
+        // Explicit ratings are applied after the watch signal, and can be negative —
+        // a thumbs-down on a horror film should pull Horror down, not just fail to
+        // push it up. Episode ratings are deliberately weighted lower than title
+        // ratings: disliking one episode is not disliking the show.
+        foreach (var rating in ratings.Where(r => r.MediaItem is not null))
+        {
+            var w = RatingScale.Weight(rating.Value)
+                * Recency(rating.RatedAt, asOf)
+                * (rating.IsEpisodeRating ? 0.3 : 1.0);
+
+            foreach (var g in rating.MediaItem!.Genres)
+            {
+                var cur = genres.GetValueOrDefault(g);
+                genres[g] = (cur.Weight + w, cur.Count);
+            }
+
+            foreach (var p in rating.MediaItem.People)
+            {
+                var cur = people.GetValueOrDefault(p);
+                people[p] = (cur.Weight + w, cur.Count);
+            }
+        }
+
         var recentlyLoved = meaningful
             .OrderByDescending(e => e.WatchedAt)
             .Select(e => e.MediaItem!.DisplayTitle)
@@ -85,6 +115,39 @@ public static class TasteProfileBuilder
 
         var showWatches = meaningful.Count(e => e.MediaItem!.Kind is MediaKind.Show or MediaKind.Episode);
 
+        var titleRatings = ratings.Where(r => r.MediaItem is not null && !r.IsEpisodeRating).ToList();
+
+        var loved = titleRatings
+            .Where(r => r.Value is RatingValue.Up or RatingValue.Loved)
+            .OrderByDescending(r => r.Value)
+            .ThenByDescending(r => r.RatedAt)
+            .Select(r => r.Value == RatingValue.Loved
+                ? $"{r.MediaItem!.DisplayTitle} (loved it)"
+                : r.MediaItem!.DisplayTitle)
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .Take(RatedTitleCount)
+            .ToList();
+
+        // An explicit thumbs-down outranks anything inferred, so these are merged with
+        // the caller's list rather than replacing it.
+        var allDisliked = titleRatings
+            .Where(r => r.Value == RatingValue.Down)
+            .OrderByDescending(r => r.RatedAt)
+            .Select(r => r.MediaItem!.DisplayTitle)
+            .Concat(disliked)
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .Take(RatedTitleCount)
+            .ToList();
+
+        var episodeRatings = ratings
+            .Where(r => r.MediaItem is not null && r.IsEpisodeRating)
+            .OrderByDescending(r => r.RatedAt)
+            .Select(r => $"{r.MediaItem!.Title} S{r.SeasonNumber}"
+                + (r.EpisodeNumber is null ? "" : $"E{r.EpisodeNumber}")
+                + $" — {Describe(r.Value)}")
+            .Take(RatedEpisodeCount)
+            .ToList();
+
         return new TasteProfile
         {
             Subject = subject,
@@ -99,7 +162,10 @@ public static class TasteProfileBuilder
             InProgress = inProgress,
             TypicalMovieRuntime = Median(movieRuntimes),
             ShowBias = meaningful.Count == 0 ? 0 : (double)showWatches / meaningful.Count,
-            Disliked = disliked,
+            Disliked = allDisliked,
+            Loved = loved,
+            EpisodeRatings = episodeRatings,
+            TotalRatings = ratings.Count,
         };
     }
 
@@ -109,8 +175,7 @@ public static class TasteProfileBuilder
     /// </summary>
     public static double Weight(WatchEvent e, DateTimeOffset asOf)
     {
-        var ageDays = Math.Max(0, (asOf - e.WatchedAt).TotalDays);
-        var recency = Math.Pow(0.5, ageDays / RecencyHalfLifeDays);
+        var recency = Recency(e.WatchedAt, asOf);
 
         var fidelity = e.Fidelity switch
         {
@@ -121,6 +186,17 @@ public static class TasteProfileBuilder
 
         return recency * fidelity;
     }
+
+    /// <summary>Exponential decay on the shared half-life. 1.0 today, 0.5 six months ago.</summary>
+    public static double Recency(DateTimeOffset at, DateTimeOffset asOf) =>
+        Math.Pow(0.5, Math.Max(0, (asOf - at).TotalDays) / RecencyHalfLifeDays);
+
+    private static string Describe(RatingValue value) => value switch
+    {
+        RatingValue.Loved => "loved it",
+        RatingValue.Up => "thumbs up",
+        _ => "thumbs down",
+    };
 
     private static List<WeightedTag> Rank(
         Dictionary<string, (double Weight, int Count)> source,

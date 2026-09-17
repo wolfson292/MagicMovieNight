@@ -37,6 +37,14 @@ public class TasteProfileService(MovieNightDbContext db)
             .OrderByDescending(e => e.WatchedAt)
             .ToListAsync(ct);
 
+        var ratings = await db.Ratings
+            .Include(r => r.MediaItem)
+            .Where(r => resolvedIds.Contains(r.ViewerId))
+            .OrderByDescending(r => r.RatedAt)
+            .ToListAsync(ct);
+
+        // "Not for us" on a recommendation is weaker than a real rating — they never
+        // watched it — but it is still the household telling us something.
         var disliked = await db.Recommendations
             .Where(r => r.Verdict == Verdict.ThumbsDown && r.MediaItem != null)
             .Select(r => r.MediaItem!.Title)
@@ -46,7 +54,7 @@ public class TasteProfileService(MovieNightDbContext db)
 
         var inProgress = FindInProgress(events);
 
-        return TasteProfileBuilder.Build(subject, resolvedIds, events, disliked, inProgress);
+        return TasteProfileBuilder.Build(subject, resolvedIds, events, ratings, disliked, inProgress);
     }
 
     private async Task<string> DescribeSubjectAsync(

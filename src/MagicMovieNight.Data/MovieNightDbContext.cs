@@ -17,6 +17,8 @@ public class MovieNightDbContext(DbContextOptions<MovieNightDbContext> options) 
 
     public DbSet<Recommendation> Recommendations => Set<Recommendation>();
 
+    public DbSet<Rating> Ratings => Set<Rating>();
+
     public DbSet<IngestState> IngestStates => Set<IngestState>();
 
     protected override void OnModelCreating(ModelBuilder b)
@@ -94,6 +96,30 @@ public class MovieNightDbContext(DbContextOptions<MovieNightDbContext> options) 
         {
             e.Property(r => r.Pitch).IsRequired();
             e.Property(r => r.WhereToWatch).HasMaxLength(200);
+            e.HasOne(r => r.MediaItem!)
+                .WithMany()
+                .HasForeignKey(r => r.MediaItemId)
+                .OnDelete(DeleteBehavior.Cascade);
+        });
+
+        b.Entity<Rating>(e =>
+        {
+            e.Property(r => r.SourceKey).HasMaxLength(200).IsRequired();
+
+            // Same idempotency guarantee as watch events: re-importing a ratings
+            // export cannot create duplicates.
+            e.HasIndex(r => new { r.Source, r.SourceKey }).IsUnique();
+
+            // One opinion per person per thing. Re-rating updates in place rather than
+            // stacking, which is what the UI's toggle behaviour depends on.
+            e.HasIndex(r => new { r.ViewerId, r.MediaItemId, r.SeasonNumber, r.EpisodeNumber })
+                .IsUnique();
+
+            e.HasOne(r => r.Viewer!)
+                .WithMany()
+                .HasForeignKey(r => r.ViewerId)
+                .OnDelete(DeleteBehavior.Cascade);
+
             e.HasOne(r => r.MediaItem!)
                 .WithMany()
                 .HasForeignKey(r => r.MediaItemId)

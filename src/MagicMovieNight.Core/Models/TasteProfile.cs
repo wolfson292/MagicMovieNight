@@ -41,6 +41,17 @@ public record TasteProfile
 
     /// <summary>Titles the household explicitly thumbed down. Hard exclusions for the model.</summary>
     public required IReadOnlyList<string> Disliked { get; init; }
+
+    /// <summary>Titles they explicitly rated up or loved — the strongest positive signal there is.</summary>
+    public required IReadOnlyList<string> Loved { get; init; }
+
+    /// <summary>
+    /// Ratings on individual episodes, which say something a title-level rating cannot:
+    /// that a show is worth watching but a particular stretch of it is not.
+    /// </summary>
+    public required IReadOnlyList<string> EpisodeRatings { get; init; }
+
+    public int TotalRatings { get; init; }
 }
 
 public record WeightedTag(string Name, double Weight, int Count);

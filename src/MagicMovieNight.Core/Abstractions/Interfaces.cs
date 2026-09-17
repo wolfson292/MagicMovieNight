@@ -68,6 +68,64 @@ public record RawWatchEvent
     public SourceFidelity Fidelity { get; init; }
 }
 
+/// <summary>
+/// A one-shot import of an uploaded ratings export. Separate from
+/// <see cref="IHistoryImporter"/> because a rating is an opinion, not a viewing —
+/// Netflix ships the two as different files and they mean different things.
+/// </summary>
+public interface IRatingImporter
+{
+    WatchSource Source { get; }
+
+    string DisplayName { get; }
+
+    IAsyncEnumerable<RawRating> ParseAsync(Stream csv, CancellationToken ct = default);
+}
+
+/// <summary>A rating as the source reports it, before title resolution.</summary>
+public record RawRating
+{
+    public required string Title { get; init; }
+
+    public int? Year { get; init; }
+
+    public MediaKind Kind { get; init; }
+
+    public required string SourceKey { get; init; }
+
+    public required RatingValue Value { get; init; }
+
+    public int? Stars { get; init; }
+
+    public required DateTimeOffset RatedAt { get; init; }
+
+    public string? ExternalViewerId { get; init; }
+
+    public int? TmdbId { get; init; }
+
+    public int? TraktId { get; init; }
+
+    public string? ImdbId { get; init; }
+
+    public int? SeasonNumber { get; init; }
+
+    public int? EpisodeNumber { get; init; }
+
+    /// <summary>The raw event this came from, reused for catalog resolution.</summary>
+    public RawWatchEvent ToResolvable() => new()
+    {
+        Title = Title,
+        Year = Year,
+        Kind = Kind,
+        SourceKey = SourceKey,
+        WatchedAt = RatedAt,
+        TmdbId = TmdbId,
+        TraktId = TraktId,
+        ImdbId = ImdbId,
+        Fidelity = SourceFidelity.TitleAndDate,
+    };
+}
+
 /// <summary>Resolves titles to catalog entries and fills in metadata.</summary>
 public interface ICatalogService
 {

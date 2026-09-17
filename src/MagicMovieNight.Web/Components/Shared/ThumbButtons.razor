@@ -1,0 +1,36 @@
+@* Three-state thumb control. Clicking the active value clears it, so there is no
+   separate "remove rating" affordance to explain. *@
+
+<div class="thumbs">
+    <button class="chip thumb @(Value == RatingValue.Down ? "on down" : "")"
+            title="Not for me"
+            disabled="@Disabled"
+            @onclick="() => Pick(RatingValue.Down)">
+        👎
+    </button>
+    <button class="chip thumb @(Value == RatingValue.Up ? "on" : "")"
+            title="Liked it"
+            disabled="@Disabled"
+            @onclick="() => Pick(RatingValue.Up)">
+        👍
+    </button>
+    <button class="chip thumb @(Value == RatingValue.Loved ? "on" : "")"
+            title="Loved it"
+            disabled="@Disabled"
+            @onclick="() => Pick(RatingValue.Loved)">
+        ❤️
+    </button>
+</div>
+
+@code {
+    [Parameter]
+    public RatingValue? Value { get; set; }
+
+    [Parameter]
+    public bool Disabled { get; set; }
+
+    [Parameter]
+    public EventCallback<RatingValue> OnRate { get; set; }
+
+    private Task Pick(RatingValue value) => OnRate.InvokeAsync(value);
+}

@@ -18,6 +18,8 @@ endpoint to call. So the architecture routes around it:
 | **Plex** | Tautulli API, polled | Who watched, which device, completion % |
 | **Trakt** | Trakt API, polled | Per-play, unified across services |
 | **Netflix / Hulu / Prime** | Trakt browser scrobbler (ongoing) + CSV import (backfill) | Title and date only |
+| **Netflix thumbs** | `Ratings.csv` from the account data export | Explicit opinion |
+| **Your own ratings** | Rated in the app | Explicit opinion, per episode if you want |
 | **Apple TV app** | No export exists | — |
 
 Two things make the streamers work:
@@ -49,14 +51,18 @@ Claude never sees raw history — tens of thousands of rows would be mostly nois
 a distilled **taste profile** and a pre-trimmed **candidate pool**, and does the part it
 is actually good at: judgement, and explaining itself.
 
-The profile does two things that matter:
+The profile does three things that matter:
 
 - **Recency weighting.** Every watch decays on a 180-day half-life. What you finished
   last month counts far more than what you finished in 2019.
 - **Fidelity weighting.** A Tautulli event that says *"96% complete, living room Apple
   TV"* outweighs a Netflix CSV row that says only *"you saw something that day."*
+- **Ratings outrank watching.** Watching something only says you watched it. A
+  thumbs-down says what you thought — so ratings push genre and cast affinity in either
+  direction rather than merely adding to it, and a thumbs-down is weighted harder than
+  a thumbs-up because people rate things down far less often.
 
-Abandonment is a first-class signal: a film you bailed on at 8% is negative evidence
+Abandonment is a first-class signal too: a film you bailed on at 8% is negative evidence
 about that *kind* of film, not just that title. Finishing it later cancels that out.
 
 **Per-person and household profiles.** Viewers are discovered automatically from each
@@ -64,6 +70,21 @@ source and can be merged on the Household page (Tautulli's `scott` and Trakt's `
 are the same person). Picking for two people pools their history rather than averaging
 two profiles — that way something you both watched outweighs two things only one of you
 did, which is what *"what should **we** watch"* actually means.
+
+### Ratings
+
+Rate anything you've watched on the **Rate** page — films, series, or individual episodes.
+Three states: 👎 / 👍 / ❤️ ("loved it"), matching the scale Netflix already uses. Clicking
+the active one clears it. You can also rate a pick straight from the recommendation card.
+
+Episode ratings are deliberately weighted at about a third of a title rating, and never
+land a show on the do-not-recommend list. *"Great show, terrible finale"* is a real
+opinion and the model is told to read it that way.
+
+Your Netflix thumbs import alongside these. They live in `Ratings.csv` inside the **full
+account data export** (netflix.com/account/getmyinfo) — not the viewing-activity page,
+which only has watch dates. Both the current thumbs scale and the pre-2017 five-star
+scale are handled. Ratings you make in the app are never overwritten by an import.
 
 ---
 
@@ -123,6 +144,12 @@ title costs a TMDB lookup. After that it syncs every six hours in the background
 **Household.** Each source invents its own user ids, so the same person usually appears
 two or three times after the first sync. Merge them so their taste is one profile.
 
+### 6. Rate some things
+
+**Rate.** Recommendations get noticeably sharper once there are explicit opinions to work
+from. Importing your Netflix thumbs is the fastest way to seed this — years of opinions in
+one upload.
+
 ---
 
 ## Local development
@@ -163,7 +190,8 @@ Turn it down in the stack environment if you want:
 
 ## Status
 
-Working and tested: taste profile maths, CSV parsing, EF schema, the full build.
+Working and tested: taste profile maths, ratings weighting, CSV parsing (viewing and
+ratings), EF schema, the full build. 39 tests.
 
 Not yet verified against live services — Trakt pairing, a real Tautulli sync, and the
 Docker image build all need credentials and a running daemon to exercise. See the
