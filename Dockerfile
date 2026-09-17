@@ -21,16 +21,14 @@ COPY . .
 RUN dotnet publish src/MagicMovieNight.Web/MagicMovieNight.Web.csproj \
     -c Release -o /app --no-restore
 
-# TEMPORARY DIAGNOSTIC — runs before the assertion so the logs capture it either way.
-RUN echo "=== SDK: $(dotnet --version)  RID: $(dotnet --info | grep -i 'RID:' | head -1) ===" \
- && echo "=== does blazor.web.js exist ANYWHERE in this image? ===" \
- && (find / -name 'blazor.web.js*' -not -path '*/proc/*' 2>/dev/null | head -5 || true) \
- && echo "=== targeting pack staticwebassets ===" \
- && (ls /usr/share/dotnet/packs/Microsoft.AspNetCore.App.Ref/*/ 2>/dev/null | head -20 || echo "no Ref pack") \
- && echo "=== obj staticwebassets files ===" \
- && (ls src/MagicMovieNight.Web/obj/Release/net10.0/staticwebassets* 2>/dev/null || echo "none") \
- && echo "=== blazor mentions in build manifest ===" \
- && (grep -o 'blazor[a-z.]*' src/MagicMovieNight.Web/obj/Release/net10.0/staticwebassets.build.json 2>/dev/null | sort -u | head || echo "no build.json") \
+# TEMPORARY DIAGNOSTIC
+RUN dotnet --list-runtimes | grep -i aspnet \
+ && echo "=== restore log, internal.assets / blazor mentions ===" \
+ && (dotnet restore src/MagicMovieNight.Web/MagicMovieNight.Web.csproj -v n 2>&1 \
+      | grep -iE "internal\.assets|blazor|staticwebasset" | head -15 \
+      || echo "NONE in restore log") \
+ && echo "=== nuget cache after restore ===" \
+ && (ls ~/.nuget/packages/ 2>/dev/null | grep -i "internal.assets" || echo "internal.assets NOT in cache") \
  && echo "=== end diagnostic ==="
 
 # Fail the build rather than ship a UI that silently cannot do anything. Without
