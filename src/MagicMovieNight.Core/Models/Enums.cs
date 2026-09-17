@@ -47,13 +47,26 @@ public enum RecommendationOrigin
     ContinueWatching = 3,
 }
 
-/// <summary>Household feedback on a recommendation — the training signal.</summary>
+/// <summary>
+/// What became of a recommendation. Deliberately about the *pick*, not the title —
+/// whether you liked something is a rating, and lives on <see cref="Rating"/> where it
+/// is per-person and weighted.
+/// </summary>
 public enum Verdict
 {
     None = 0,
-    ThumbsUp = 1,
-    ThumbsDown = 2,
+
+    /// <summary>
+    /// Taken and watched. Recorded as a real watch immediately rather than waiting for
+    /// Tautulli to notice — and if it was watched on a streaming service, nothing else
+    /// may ever notice.
+    /// </summary>
     Watched = 3,
-    NotTonight = 4,
+
+    /// <summary>
+    /// Already seen before it was suggested. Less a taste signal than a data signal: it
+    /// means the history has a hole, because the title was watched somewhere this system
+    /// cannot observe. Excluded from future picks.
+    /// </summary>
     AlreadySeen = 5,
 }

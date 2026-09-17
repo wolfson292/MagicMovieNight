@@ -6,6 +6,7 @@
 @using Microsoft.EntityFrameworkCore
 @inject IRecommendationEngine Engine
 @inject RatingService Ratings
+@inject FeedbackService Feedback
 @inject MovieNightDbContext Db
 @inject ILogger<Home> Logger
 
@@ -153,23 +154,27 @@
                         }
                     </div>
 
+                    @* Two outcomes, both about the recommendation rather than the title.
+                       Whether you liked it is a rating, and lives on the thumbs above. *@
                     <div class="verdicts">
                         <button class="chip @(pick.Verdict == Verdict.Watched ? "on" : "")"
+                                title="Records this as watched tonight"
+                                disabled="@(_ratingViewerId == 0)"
                                 @onclick="() => SetVerdict(pick, Verdict.Watched)">
                             We watched it
                         </button>
-                        <button class="chip @(pick.Verdict == Verdict.ThumbsUp ? "on" : "")"
-                                @onclick="() => SetVerdict(pick, Verdict.ThumbsUp)">
-                            👍 Good call
-                        </button>
-                        <button class="chip @(pick.Verdict == Verdict.ThumbsDown ? "on" : "")"
-                                @onclick="() => SetVerdict(pick, Verdict.ThumbsDown)">
-                            👎 Not for us
-                        </button>
                         <button class="chip @(pick.Verdict == Verdict.AlreadySeen ? "on" : "")"
+                                title="Stops this being suggested again"
+                                disabled="@(_ratingViewerId == 0)"
                                 @onclick="() => SetVerdict(pick, Verdict.AlreadySeen)">
                             Already seen it
                         </button>
+                        @if (pick.Verdict == Verdict.AlreadySeen)
+                        {
+                            <span class="muted">
+                                Won't be suggested again. Thumbs above if you have a view on it.
+                            </span>
+                        }
                     </div>
                 </div>
             </div>
@@ -308,12 +313,18 @@ else if (_run is not null && !_busy && _error is null)
         }
     }
 
+    /// <summary>
+    /// Clicking the active verdict clears it, which is simpler than a separate undo.
+    /// "We watched it" also writes a real watch event, so the history reflects tonight
+    /// even when it was watched somewhere nothing else can see.
+    /// </summary>
     private async Task SetVerdict(Recommendation pick, Verdict verdict)
     {
-        // Clicking the active verdict clears it — easier than a separate undo.
-        pick.Verdict = pick.Verdict == verdict ? Verdict.None : verdict;
-        pick.VerdictAt = DateTimeOffset.UtcNow;
+        if (_ratingViewerId == 0)
+        {
+            return;
+        }
 
-        await Db.SaveChangesAsync();
+        pick.Verdict = await Feedback.ApplyAsync(pick.Id, verdict, _ratingViewerId);
     }
 }

@@ -35,7 +35,6 @@ public static class TasteProfileBuilder
         IReadOnlyList<int> viewerIds,
         IReadOnlyList<WatchEvent> events,
         IReadOnlyList<Rating> ratings,
-        IReadOnlyList<string> disliked,
         IReadOnlyList<string> inProgress,
         DateTimeOffset? now = null)
     {
@@ -128,13 +127,10 @@ public static class TasteProfileBuilder
             .Take(RatedTitleCount)
             .ToList();
 
-        // An explicit thumbs-down outranks anything inferred, so these are merged with
-        // the caller's list rather than replacing it.
         var allDisliked = titleRatings
             .Where(r => r.Value == RatingValue.Down)
             .OrderByDescending(r => r.RatedAt)
             .Select(r => r.MediaItem!.DisplayTitle)
-            .Concat(disliked)
             .Distinct(StringComparer.OrdinalIgnoreCase)
             .Take(RatedTitleCount)
             .ToList();

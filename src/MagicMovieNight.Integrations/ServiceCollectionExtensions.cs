@@ -84,6 +84,7 @@ public static class ServiceCollectionExtensions
         services.AddScoped<IRecommendationEngine, ClaudeRecommendationEngine>();
         services.AddScoped<IngestionService>();
         services.AddScoped<RatingService>();
+        services.AddScoped<FeedbackService>();
 
         services.AddScoped<IHistorySource>(sp => sp.GetRequiredService<TautulliClient>());
         services.AddScoped<IHistorySource>(sp => sp.GetRequiredService<TraktClient>());

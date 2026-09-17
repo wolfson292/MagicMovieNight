@@ -81,6 +81,24 @@ Episode ratings are deliberately weighted at about a third of a title rating, an
 land a show on the do-not-recommend list. *"Great show, terrible finale"* is a real
 opinion and the model is told to read it that way.
 
+### Ratings vs. verdicts
+
+Two different questions, deliberately kept apart:
+
+- **Thumbs (👎 / 👍 / ❤️)** answer *what did you think of it*. Per person, weighted, and
+  the strongest input to the taste profile.
+- **"We watched it" / "Already seen it"** answer *what became of this recommendation*.
+
+"We watched it" records a real watch immediately rather than waiting for Tautulli to
+notice — which matters because if you watched it on a streaming service, nothing else
+may ever notice.
+
+"Already seen it" is the more interesting one. It is not an opinion, it is a gap in the
+data: you saw that title somewhere this system cannot observe, which is the blind spot of
+the whole design. It removes the title from future picks, but deliberately invents no
+watch date — claiming a film from years ago was watched tonight would corrupt the recency
+weighting, and admitting we do not know is better.
+
 Your Netflix thumbs import alongside these. They live in `Ratings.csv` inside the **full
 account data export** (netflix.com/account/getmyinfo) — not the viewing-activity page,
 which only has watch dates. Both the current thumbs scale and the pre-2017 five-star

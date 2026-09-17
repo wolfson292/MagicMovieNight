@@ -49,7 +49,7 @@ public class RatingsInTasteProfileTests
         var events = new[] { Watch(horror, Now.AddDays(-3)), Watch(comedy, Now.AddDays(-3)) };
         var ratings = new[] { Rate(horror, RatingValue.Down, Now.AddDays(-2)) };
 
-        var profile = TasteProfileBuilder.Build("test", [1], events, ratings, [], [], Now);
+        var profile = TasteProfileBuilder.Build("test", [1], events, ratings, [], Now);
 
         // They watched both, but said outright they disliked the horror one.
         var horrorWeight = profile.TopGenres.Single(g => g.Name == "Horror").Weight;
@@ -65,7 +65,7 @@ public class RatingsInTasteProfileTests
         var item = Item(1, "Regrettable Film", ["Drama"]);
         var ratings = new[] { Rate(item, RatingValue.Down, Now.AddDays(-1)) };
 
-        var profile = TasteProfileBuilder.Build("test", [1], [], ratings, [], [], Now);
+        var profile = TasteProfileBuilder.Build("test", [1], [], ratings, [], Now);
 
         Assert.Contains("Regrettable Film", profile.Disliked);
     }
@@ -82,7 +82,7 @@ public class RatingsInTasteProfileTests
             Rate(liked, RatingValue.Up, Now.AddDays(-1)),
         };
 
-        var profile = TasteProfileBuilder.Build("test", [1], [], ratings, [], [], Now);
+        var profile = TasteProfileBuilder.Build("test", [1], [], ratings, [], Now);
 
         Assert.Contains(profile.Loved, s => s.Contains("Masterpiece") && s.Contains("loved"));
         Assert.Contains(profile.Loved, s => s.Contains("Decent"));
@@ -95,10 +95,10 @@ public class RatingsInTasteProfileTests
         var show = Item(1, "Great Show", ["Drama"], MediaKind.Show);
 
         var titleLevel = TasteProfileBuilder.Build(
-            "test", [1], [], [Rate(show, RatingValue.Down, Now.AddDays(-1))], [], [], Now);
+            "test", [1], [], [Rate(show, RatingValue.Down, Now.AddDays(-1))], [], Now);
 
         var episodeLevel = TasteProfileBuilder.Build(
-            "test", [1], [], [Rate(show, RatingValue.Down, Now.AddDays(-1), season: 3, episode: 7)], [], [], Now);
+            "test", [1], [], [Rate(show, RatingValue.Down, Now.AddDays(-1), season: 3, episode: 7)], [], Now);
 
         var titleWeight = titleLevel.TopGenres.Single(g => g.Name == "Drama").Weight;
         var episodeWeight = episodeLevel.TopGenres.Single(g => g.Name == "Drama").Weight;
@@ -118,10 +118,10 @@ public class RatingsInTasteProfileTests
         var item = Item(1, "Thing", ["Drama"]);
 
         var recent = TasteProfileBuilder.Build(
-            "test", [1], [], [Rate(item, RatingValue.Loved, Now.AddDays(-2))], [], [], Now);
+            "test", [1], [], [Rate(item, RatingValue.Loved, Now.AddDays(-2))], [], Now);
 
         var old = TasteProfileBuilder.Build(
-            "test", [1], [], [Rate(item, RatingValue.Loved, Now.AddYears(-4))], [], [], Now);
+            "test", [1], [], [Rate(item, RatingValue.Loved, Now.AddYears(-4))], [], Now);
 
         Assert.True(
             recent.TopGenres.Single(g => g.Name == "Drama").Weight

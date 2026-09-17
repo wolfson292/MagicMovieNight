@@ -6,6 +6,7 @@ using Anthropic.Models.Messages;
 using MagicMovieNight.Core.Abstractions;
 using MagicMovieNight.Core.Models;
 using MagicMovieNight.Core.Taste;
+using MagicMovieNight.Integrations.Ingest;
 using MagicMovieNight.Data;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
@@ -26,6 +27,7 @@ public class ClaudeRecommendationEngine(
     MovieNightDbContext db,
     IEnumerable<ICandidateSource> candidateSources,
     TasteProfileService profiles,
+    FeedbackService feedback,
     IOptions<ClaudeOptions> options,
     ILogger<ClaudeRecommendationEngine> logger) : IRecommendationEngine
 {
@@ -133,20 +135,15 @@ public class ClaudeRecommendationEngine(
             }
         }
 
-        var filtered = all
-            .GroupBy(c => c.Item.Id)
-            .Select(g => g.OrderByDescending(c => c.PreScore).First())
-            .Where(c => !request.LibraryOnly || c.Item.InLibrary)
-            .Where(c => request.MaxRuntimeMinutes is null
-                || c.Item.RuntimeMinutes is null
-                || c.Item.RuntimeMinutes <= request.MaxRuntimeMinutes)
-            .OrderByDescending(c => c.PreScore)
-            .Take(_options.MaxCandidates)
-            .ToList();
+        // Telling the model not to suggest something already seen is a request; removing
+        // it from the pool is a guarantee.
+        var excluded = await feedback.GetExcludedMediaAsync(profile.ViewerIds, ct);
+
+        var filtered = CandidateFilter.Apply(all, excluded, request, _options.MaxCandidates);
 
         logger.LogDebug(
-            "Gathered {Total} candidates from {Sources} sources, trimmed to {Kept}.",
-            all.Count, candidateSources.Count(), filtered.Count);
+            "Gathered {Total} candidates from {Sources} sources, excluded {Excluded} already seen, kept {Kept}.",
+            all.Count, candidateSources.Count(), excluded.Count, filtered.Count);
 
         return filtered;
     }
