@@ -33,15 +33,18 @@ public abstract class ArrClient(HttpClient http, ILogger logger)
 
     /// <summary>
     /// Resolves the quality profile and root folder, preferring configuration and
-    /// falling back to whatever the server lists first. Most installs have exactly one
-    /// of each, so asking the user to configure them up front is friction for nothing.
+    /// falling back to whatever the server lists first.
+    ///
+    /// The fallback is a convenience, not a good default: profile order is arbitrary and
+    /// the first one is often "Any", while a Sonarr install can easily have several root
+    /// folders where only one holds series. Configure both when it matters.
     /// </summary>
     protected async Task<(int? ProfileId, string? RootFolder, string? Error)> ResolveTargetsAsync(
         CancellationToken ct)
     {
         try
         {
-            var profileId = Options.QualityProfileId;
+            int? profileId = Options.QualityProfileId > 0 ? Options.QualityProfileId : null;
 
             if (profileId is null)
             {

@@ -68,10 +68,12 @@ public abstract class ArrOptions
     public string? ApiKey { get; set; }
 
     /// <summary>
-    /// Quality profile to add under. Left unset, the first profile the server reports is
-    /// used, which is right often enough to not be worth configuring up front.
+    /// Quality profile to add under. Zero means "ask the server and take the first",
+    /// which is a guess — profile order is not meaningful, so pin this in anything you
+    /// care about. Deliberately not nullable: an unset environment variable arrives as
+    /// an empty string, and binding that to int? throws at startup.
     /// </summary>
-    public int? QualityProfileId { get; set; }
+    public int QualityProfileId { get; set; }
 
     /// <summary>Root folder to add into. Unset means the server's first root folder.</summary>
     public string? RootFolderPath { get; set; }
