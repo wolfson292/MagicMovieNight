@@ -20,10 +20,11 @@ public class RatingService(
 {
     /// <summary>
     /// Sets a rating from the UI. Rating something the same way twice clears it, which
-    /// is how the thumb buttons toggle off.
+    /// is how the thumb buttons toggle off. Ratings are per person — two people sharing
+    /// an account do not share a verdict.
     /// </summary>
     public async Task<RatingValue?> SetAsync(
-        int viewerId,
+        int personId,
         int mediaItemId,
         RatingValue value,
         int? seasonNumber = null,
@@ -31,7 +32,7 @@ public class RatingService(
         CancellationToken ct = default)
     {
         var existing = await db.Ratings.FirstOrDefaultAsync(
-            r => r.ViewerId == viewerId
+            r => r.PersonId == personId
                 && r.MediaItemId == mediaItemId
                 && r.SeasonNumber == seasonNumber
                 && r.EpisodeNumber == episodeNumber,
@@ -56,13 +57,13 @@ public class RatingService(
 
         db.Ratings.Add(new Rating
         {
-            ViewerId = viewerId,
+            PersonId = personId,
             MediaItemId = mediaItemId,
             SeasonNumber = seasonNumber,
             EpisodeNumber = episodeNumber,
             Value = value,
             Source = WatchSource.Manual,
-            SourceKey = $"ui:{viewerId}:{mediaItemId}:{seasonNumber}:{episodeNumber}",
+            SourceKey = $"ui:{personId}:{mediaItemId}:{seasonNumber}:{episodeNumber}",
             RatedAt = DateTimeOffset.UtcNow,
         });
 
@@ -78,7 +79,7 @@ public class RatingService(
     public async Task<IngestResult> ImportAsync(
         IRatingImporter importer,
         Stream file,
-        int viewerId,
+        int personId,
         CancellationToken ct = default)
     {
         var result = new IngestResult();
@@ -93,7 +94,7 @@ public class RatingService(
             }
 
             var existing = await db.Ratings.FirstOrDefaultAsync(
-                r => r.ViewerId == viewerId
+                r => r.PersonId == personId
                     && r.MediaItemId == item.Id
                     && r.SeasonNumber == raw.SeasonNumber
                     && r.EpisodeNumber == raw.EpisodeNumber,
@@ -107,7 +108,7 @@ public class RatingService(
 
             db.Ratings.Add(new Rating
             {
-                ViewerId = viewerId,
+                PersonId = personId,
                 MediaItemId = item.Id,
                 SeasonNumber = raw.SeasonNumber,
                 EpisodeNumber = raw.EpisodeNumber,

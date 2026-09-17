@@ -21,7 +21,7 @@ public class LibraryCandidateSource(MovieNightDbContext db) : ICandidateSource
         CancellationToken ct = default)
     {
         var watchedIds = await db.WatchEvents
-            .Where(e => profile.ViewerIds.Contains(e.ViewerId))
+            .Where(e => profile.ProfileIds.Contains(e.ProfileId))
             .Select(e => e.MediaItemId)
             .Distinct()
             .ToListAsync(ct);
@@ -144,7 +144,7 @@ public class ContinueWatchingCandidateSource(MovieNightDbContext db) : ICandidat
 
         var recentShows = await db.WatchEvents
             .Include(e => e.MediaItem)
-            .Where(e => profile.ViewerIds.Contains(e.ViewerId))
+            .Where(e => profile.ProfileIds.Contains(e.ProfileId))
             .Where(e => e.WatchedAt >= cutoff)
             .Where(e => e.MediaItem!.Kind == MediaKind.Show)
             .GroupBy(e => e.MediaItem!)

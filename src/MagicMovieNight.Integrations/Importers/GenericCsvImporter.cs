@@ -87,7 +87,7 @@ public abstract class GenericCsvImporter(ILogger logger) : IHistoryImporter
                 Title = CleanTitle(title),
                 Kind = GuessKind(title),
                 WatchedAt = watchedAt.Value,
-                ExternalViewerId = CsvColumnMap.Read(csv, profileColumn),
+                ExternalProfileId = CsvColumnMap.Read(csv, profileColumn),
                 SourceKey = StableKey(title, watchedAt.Value),
                 Fidelity = SourceFidelity.TitleAndDate,
             };

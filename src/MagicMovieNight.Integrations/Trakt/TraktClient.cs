@@ -154,7 +154,7 @@ public class TraktClient(
             Kind = kind,
             SourceKey = item.Id.ToString(),
             WatchedAt = item.WatchedAt,
-            ExternalViewerId = _options.User,
+            ExternalProfileId = _options.User,
             TraktId = media.Ids.Trakt,
             TmdbId = media.Ids.Tmdb,
             ImdbId = media.Ids.Imdb,

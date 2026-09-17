@@ -13,9 +13,13 @@ public class Rating
 {
     public int Id { get; set; }
 
-    public int ViewerId { get; set; }
+    /// <summary>
+    /// Ratings belong to a person, not a profile. An opinion is held by a human, and two
+    /// people sharing an account do not share a verdict on what they watched.
+    /// </summary>
+    public int PersonId { get; set; }
 
-    public Viewer? Viewer { get; set; }
+    public Person? Person { get; set; }
 
     public int MediaItemId { get; set; }
 

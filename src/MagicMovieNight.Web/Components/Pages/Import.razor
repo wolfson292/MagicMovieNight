@@ -37,17 +37,28 @@
     </div>
 
     <div class="field">
-        <label for="viewer">Whose history is it?</label>
-        <select id="viewer" @bind="_viewerId">
-            <option value="0">— pick someone —</option>
-            @foreach (var viewer in _viewers)
+        <label for="profile">Which profile is this export from?</label>
+        <select id="profile" @bind="_profileId">
+            <option value="0">— pick a profile —</option>
+            @foreach (var profile in _profiles)
             {
-                <option value="@viewer.Id">@viewer.DisplayName</option>
+                <option value="@profile.Id">@profile.DisplayName</option>
             }
         </select>
-        <p class="muted" style="margin-top: 0.4rem;">
-            These exports are downloaded per profile and usually don't say whose they
-            are, so tell us.
+        <div class="row" style="margin-top: 0.5rem;">
+            <input type="text" @bind="_newProfileName" placeholder="…or name a new one"
+                   style="max-width: 240px;" />
+            <button class="chip" @onclick="AddProfile"
+                    disabled="@string.IsNullOrWhiteSpace(_newProfileName)">
+                Create
+            </button>
+        </div>
+        <p class="muted" style="margin-top: 0.5rem;">
+            A profile is an account, not a person — create one per Netflix/Hulu/Prime
+            profile, then say who it represents on the
+            <a href="household">Household</a> page. A per-profile download carries no
+            profile column, so it needs telling; a full account export does and routes
+            itself.
         </p>
     </div>
 
@@ -56,7 +67,7 @@
         <InputFile id="file" OnChange="OnFileSelected" accept=".csv" />
     </div>
 
-    <button class="primary" @onclick="RunImport" disabled="@(_busy || _file is null || _viewerId == 0)">
+    <button class="primary" @onclick="RunImport" disabled="@(_busy || _file is null || _profileId == 0)">
         @if (_busy)
         {
             <span class="spinner"></span> <span>Importing…</span>
@@ -131,13 +142,14 @@
 @code {
     private record ImportOption(int Index, string DisplayName, bool IsRatings, object Importer);
 
-    private List<Viewer> _viewers = [];
+    private List<Profile> _profiles = [];
     private List<ImportOption> _options = [];
     private int _selectedIndex;
-    private int _viewerId;
+    private int _profileId;
 
     private ImportOption Selected => _options[_selectedIndex];
     private IBrowserFile? _file;
+    private string _newProfileName = string.Empty;
     private bool _busy;
     private IngestResult? _result;
     private string? _error;
@@ -147,7 +159,7 @@
 
     protected override async Task OnInitializedAsync()
     {
-        _viewers = await Db.Viewers.OrderBy(v => v.DisplayName).ToListAsync();
+        _profiles = await Db.Profiles.OrderBy(p => p.DisplayName).ToListAsync();
 
         _options =
         [
@@ -156,6 +168,25 @@
 
         _options.AddRange(RatingImporters.Select((i, n) =>
             new ImportOption(_options.Count + n, i.DisplayName, true, i)));
+    }
+
+    private async Task AddProfile()
+    {
+        var name = _newProfileName.Trim();
+
+        if (name.Length == 0
+            || _profiles.Any(p => p.DisplayName.Equals(name, StringComparison.OrdinalIgnoreCase)))
+        {
+            return;
+        }
+
+        var profile = new Profile { DisplayName = name };
+        Db.Profiles.Add(profile);
+        await Db.SaveChangesAsync();
+
+        _newProfileName = string.Empty;
+        _profiles = await Db.Profiles.OrderBy(p => p.DisplayName).ToListAsync();
+        _profileId = profile.Id;
     }
 
     private void OnFileSelected(InputFileChangeEventArgs e)
@@ -167,7 +198,7 @@
 
     private async Task RunImport()
     {
-        if (_file is null || _viewerId == 0)
+        if (_file is null || _profileId == 0)
         {
             return;
         }
@@ -190,8 +221,8 @@
 
             _result = Selected.Importer switch
             {
-                IRatingImporter ratings => await Ratings.ImportAsync(ratings, buffer, _viewerId),
-                IHistoryImporter history => await Ingestion.ImportAsync(history, buffer, _viewerId),
+                IRatingImporter ratings => await Ratings.ImportAsync(ratings, buffer, _profileId),
+                IHistoryImporter history => await Ingestion.ImportAsync(history, buffer, _profileId),
                 _ => throw new InvalidOperationException("Unknown importer type."),
             };
         }

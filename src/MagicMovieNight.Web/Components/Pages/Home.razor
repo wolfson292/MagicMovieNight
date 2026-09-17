@@ -22,15 +22,15 @@
     <div class="field">
         <label>Who's watching</label>
         <div class="row">
-            <button class="chip @(_selectedViewers.Count == 0 ? "on" : "")"
+            <button class="chip @(_selectedPeople.Count == 0 ? "on" : "")"
                     @onclick="SelectHousehold">
                 Everyone
             </button>
-            @foreach (var viewer in _viewers)
+            @foreach (var person in _people)
             {
-                <button class="chip @(_selectedViewers.Contains(viewer.Id) ? "on" : "")"
-                        @onclick="() => ToggleViewer(viewer.Id)">
-                    @viewer.DisplayName
+                <button class="chip @(_selectedPeople.Contains(person.Id) ? "on" : "")"
+                        @onclick="() => TogglePerson(person.Id)">
+                    @person.Name
                 </button>
             }
         </div>
@@ -95,14 +95,14 @@
 
 @if (_run?.Recommendations.Count > 0)
 {
-    @if (_viewers.Count > 1)
+    @if (_people.Count > 1)
     {
         <div class="row" style="margin-top: 1.5rem;">
             <span class="muted">Ratings apply to</span>
-            <select @bind="_ratingViewerId" style="width: auto;">
-                @foreach (var viewer in _viewers)
+            <select @bind="_ratingPersonId" style="width: auto;">
+                @foreach (var person in _people)
                 {
-                    <option value="@viewer.Id">@viewer.DisplayName</option>
+                    <option value="@person.Id">@person.Name</option>
                 }
             </select>
         </div>
@@ -151,11 +151,11 @@
 
                     <div class="verdicts" style="margin-bottom: 0.6rem;">
                         <ThumbButtons Value="RatingFor(item.Id)"
-                                      Disabled="@(_ratingViewerId == 0)"
+                                      Disabled="@(_ratingPersonId == 0)"
                                       OnRate="v => RatePick(item.Id, v)" />
-                        @if (_ratingViewerId == 0)
+                        @if (_ratingPersonId == 0)
                         {
-                            <span class="muted">Add a viewer to rate</span>
+                            <span class="muted">Add a person to rate</span>
                         }
                     </div>
 
@@ -164,13 +164,13 @@
                     <div class="verdicts">
                         <button class="chip @(pick.Verdict == Verdict.Watched ? "on" : "")"
                                 title="Records this as watched tonight"
-                                disabled="@(_ratingViewerId == 0)"
+                                disabled="@(_ratingPersonId == 0)"
                                 @onclick="() => SetVerdict(pick, Verdict.Watched)">
                             We watched it
                         </button>
                         <button class="chip @(pick.Verdict == Verdict.AlreadySeen ? "on" : "")"
                                 title="Stops this being suggested again"
-                                disabled="@(_ratingViewerId == 0)"
+                                disabled="@(_ratingPersonId == 0)"
                                 @onclick="() => SetVerdict(pick, Verdict.AlreadySeen)">
                             Already seen it
                         </button>
@@ -196,8 +196,8 @@ else if (_run is not null && !_busy && _error is null)
 }
 
 @code {
-    private List<Viewer> _viewers = [];
-    private readonly HashSet<int> _selectedViewers = [];
+    private List<Person> _people = [];
+    private readonly HashSet<int> _selectedPeople = [];
 
     private string? _prompt;
     private int? _maxRuntime;
@@ -211,34 +211,35 @@ else if (_run is not null && !_busy && _error is null)
 
     /// <summary>Whose opinion a thumb click records. Picks are shown to the household,
     /// but a rating always belongs to one person.</summary>
-    private int _ratingViewerId;
+    private int _ratingPersonId;
 
     private Dictionary<int, RatingValue> _ratingsByItem = [];
 
     protected override async Task OnInitializedAsync()
     {
-        _viewers = await Db.Viewers
-            .Where(v => v.IncludeInHousehold)
-            .OrderBy(v => v.DisplayName)
-            .ToListAsync();
+        // Everyone, not just the household — picking for one person or a guest is a
+        // normal thing to want, and the household is only the default.
+        _people = await Db.People.OrderBy(p => p.Name).ToListAsync();
 
-        _ratingViewerId = _viewers.FirstOrDefault()?.Id ?? 0;
+        _ratingPersonId = _people.FirstOrDefault(p => p.InHousehold)?.Id
+            ?? _people.FirstOrDefault()?.Id
+            ?? 0;
     }
 
-    private void SelectHousehold() => _selectedViewers.Clear();
+    private void SelectHousehold() => _selectedPeople.Clear();
 
-    private void ToggleViewer(int id)
+    private void TogglePerson(int id)
     {
-        if (!_selectedViewers.Remove(id))
+        if (!_selectedPeople.Remove(id))
         {
-            _selectedViewers.Add(id);
+            _selectedPeople.Add(id);
         }
 
         // Picking exactly one person to watch makes them the obvious owner of any
         // rating given on the results.
-        if (_selectedViewers.Count == 1)
+        if (_selectedPeople.Count == 1)
         {
-            _ratingViewerId = _selectedViewers.Single();
+            _ratingPersonId = _selectedPeople.Single();
         }
     }
 
@@ -247,12 +248,12 @@ else if (_run is not null && !_busy && _error is null)
 
     private async Task RatePick(int mediaItemId, RatingValue value)
     {
-        if (_ratingViewerId == 0)
+        if (_ratingPersonId == 0)
         {
             return;
         }
 
-        var result = await Ratings.SetAsync(_ratingViewerId, mediaItemId, value);
+        var result = await Ratings.SetAsync(_ratingPersonId, mediaItemId, value);
 
         if (result is null)
         {
@@ -266,7 +267,7 @@ else if (_run is not null && !_busy && _error is null)
 
     private async Task LoadRatingsForRunAsync()
     {
-        if (_run is null || _ratingViewerId == 0)
+        if (_run is null || _ratingPersonId == 0)
         {
             _ratingsByItem = [];
             return;
@@ -275,7 +276,7 @@ else if (_run is not null && !_busy && _error is null)
         var itemIds = _run.Recommendations.Select(r => r.MediaItemId).ToList();
 
         _ratingsByItem = await Db.Ratings
-            .Where(r => r.ViewerId == _ratingViewerId
+            .Where(r => r.PersonId == _ratingPersonId
                 && itemIds.Contains(r.MediaItemId)
                 && r.SeasonNumber == null)
             .ToDictionaryAsync(r => r.MediaItemId, r => r.Value);
@@ -291,7 +292,7 @@ else if (_run is not null && !_busy && _error is null)
         {
             var run = await Engine.RecommendAsync(new RecommendationRequest
             {
-                ViewerIds = _selectedViewers.ToList(),
+                PersonIds = _selectedPeople.ToList(),
                 Prompt = _prompt,
                 Count = Math.Clamp(_count, 1, 10),
                 MaxRuntimeMinutes = _maxRuntime,
@@ -328,11 +329,11 @@ else if (_run is not null && !_busy && _error is null)
     /// </summary>
     private async Task SetVerdict(Recommendation pick, Verdict verdict)
     {
-        if (_ratingViewerId == 0)
+        if (_ratingPersonId == 0)
         {
             return;
         }
 
-        pick.Verdict = await Feedback.ApplyAsync(pick.Id, verdict, _ratingViewerId);
+        pick.Verdict = await Feedback.ApplyAsync(pick.Id, verdict, _ratingPersonId);
     }
 }

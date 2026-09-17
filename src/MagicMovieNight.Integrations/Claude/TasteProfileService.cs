@@ -6,12 +6,19 @@ using Microsoft.EntityFrameworkCore;
 namespace MagicMovieNight.Integrations.Claude;
 
 /// <summary>
-/// Loads history out of the database and hands it to the profile builder.
+/// Turns "who is watching" into a taste profile.
 ///
-/// Passing no viewer ids means the household blend: every viewer flagged for
-/// inclusion, pooled. That is deliberately not the same as averaging separate
-/// profiles — pooling lets a title both people watched outweigh two titles only
-/// one of them watched, which is exactly what "what should *we* watch" means.
+/// The translation from people to history is the interesting part. A source only ever
+/// reports which account was used, so watch events hang off profiles; but a profile can
+/// represent several people and a person can watch on several profiles. Asking for
+/// Scott's taste therefore means gathering every profile Scott is a member of — his own
+/// account and every shared one — which is exactly how watching together on one login
+/// still informs both people's profiles.
+///
+/// Passing no people means the household: everyone flagged as part of it, pooled.
+/// Pooling is deliberately not the same as averaging two separate profiles — it lets a
+/// title they both watched outweigh two titles only one of them watched, which is what
+/// "what should *we* watch" actually means.
 /// </summary>
 public class TasteProfileService(MovieNightDbContext db)
 {
@@ -19,53 +26,71 @@ public class TasteProfileService(MovieNightDbContext db)
     private static readonly TimeSpan InProgressWindow = TimeSpan.FromDays(60);
 
     public async Task<TasteProfile> BuildAsync(
-        IReadOnlyList<int> viewerIds,
+        IReadOnlyList<int> personIds,
         CancellationToken ct = default)
     {
-        var resolvedIds = viewerIds.Count > 0
-            ? viewerIds.ToList()
-            : await db.Viewers
-                .Where(v => v.IncludeInHousehold)
-                .Select(v => v.Id)
+        var resolvedPeople = personIds.Count > 0
+            ? personIds.ToList()
+            : await db.People
+                .Where(p => p.InHousehold)
+                .Select(p => p.Id)
                 .ToListAsync(ct);
 
-        var subject = await DescribeSubjectAsync(viewerIds, resolvedIds, ct);
+        var profileIds = await db.ProfileMemberships
+            .Where(m => resolvedPeople.Contains(m.PersonId))
+            .Select(m => m.ProfileId)
+            .Distinct()
+            .ToListAsync(ct);
+
+        var subject = await DescribeSubjectAsync(personIds, resolvedPeople, profileIds, ct);
 
         var events = await db.WatchEvents
             .Include(e => e.MediaItem)
-            .Where(e => resolvedIds.Contains(e.ViewerId))
+            .Where(e => profileIds.Contains(e.ProfileId))
             .OrderByDescending(e => e.WatchedAt)
             .ToListAsync(ct);
 
+        // Ratings are per person and need no profile translation — that is the point of
+        // keeping them on the human rather than the account.
         var ratings = await db.Ratings
             .Include(r => r.MediaItem)
-            .Where(r => resolvedIds.Contains(r.ViewerId))
+            .Where(r => resolvedPeople.Contains(r.PersonId))
             .OrderByDescending(r => r.RatedAt)
             .ToListAsync(ct);
 
         var inProgress = FindInProgress(events);
 
-        return TasteProfileBuilder.Build(subject, resolvedIds, events, ratings, inProgress);
+        return TasteProfileBuilder.Build(
+            subject, resolvedPeople, profileIds, events, ratings, inProgress);
     }
 
     private async Task<string> DescribeSubjectAsync(
         IReadOnlyList<int> requested,
         IReadOnlyList<int> resolved,
+        IReadOnlyList<int> profileIds,
         CancellationToken ct)
     {
-        var names = await db.Viewers
-            .Where(v => resolved.Contains(v.Id))
-            .Select(v => v.DisplayName)
+        var names = await db.People
+            .Where(p => resolved.Contains(p.Id))
+            .OrderBy(p => p.Name)
+            .Select(p => p.Name)
             .ToListAsync(ct);
 
         if (names.Count == 0)
         {
-            return "the household (no viewers configured yet)";
+            return "nobody in particular — no people are set up yet";
+        }
+
+        // Saying so matters: a profile with no history looks identical to a person with
+        // no taste, and the model should know which it is looking at.
+        if (profileIds.Count == 0)
+        {
+            return $"{string.Join(" and ", names)} — no profiles mapped to them yet";
         }
 
         if (requested.Count == 0)
         {
-            return $"the whole household — {string.Join(", ", names)}";
+            return $"the household — {string.Join(" and ", names)}";
         }
 
         return names.Count == 1
@@ -75,8 +100,8 @@ public class TasteProfileService(MovieNightDbContext db)
 
     /// <summary>
     /// We do not know a show's episode count, so "in progress" means episodes watched
-    /// recently and not obviously finished. Imperfect, but it surfaces the thing the
-    /// household is most likely to want next — the show they are already mid-way through.
+    /// recently. Imperfect, but it surfaces the thing the household is most likely to
+    /// want next — the show they are already mid-way through.
     /// </summary>
     private static List<string> FindInProgress(List<WatchEvent> events)
     {

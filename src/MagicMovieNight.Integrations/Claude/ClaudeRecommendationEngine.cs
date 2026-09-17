@@ -41,12 +41,12 @@ public class ClaudeRecommendationEngine(
 
         var run = new RecommendationRun
         {
-            ViewerIds = request.ViewerIds.ToList(),
+            PersonIds = request.PersonIds.ToList(),
             Prompt = request.Prompt,
             ModelId = _options.Model,
         };
 
-        var profile = await profiles.BuildAsync(request.ViewerIds, ct);
+        var profile = await profiles.BuildAsync(request.PersonIds, ct);
         var candidates = await GatherCandidatesAsync(profile, request, ct);
 
         run.CandidateCount = candidates.Count;
@@ -137,7 +137,7 @@ public class ClaudeRecommendationEngine(
 
         // Telling the model not to suggest something already seen is a request; removing
         // it from the pool is a guarantee.
-        var excluded = await feedback.GetExcludedMediaAsync(profile.ViewerIds, ct);
+        var excluded = await feedback.GetExcludedMediaAsync(profile.ProfileIds, ct);
 
         var filtered = CandidateFilter.Apply(all, excluded, request, _options.MaxCandidates);
 

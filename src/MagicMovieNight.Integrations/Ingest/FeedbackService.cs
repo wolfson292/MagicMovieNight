@@ -30,7 +30,7 @@ public class FeedbackService(
     public async Task<Verdict> ApplyAsync(
         int recommendationId,
         Verdict verdict,
-        int viewerId,
+        int personId,
         CancellationToken ct = default)
     {
         var recommendation = await db.Recommendations
@@ -46,7 +46,7 @@ public class FeedbackService(
 
         if (resolved == Verdict.Watched)
         {
-            await RecordWatchAsync(recommendation.MediaItemId, viewerId, ct);
+            await RecordWatchAsync(recommendation.MediaItemId, personId, ct);
         }
 
         return resolved;
@@ -57,11 +57,11 @@ public class FeedbackService(
     /// anything they told us they had already seen.
     /// </summary>
     public async Task<HashSet<int>> GetExcludedMediaAsync(
-        IReadOnlyList<int> viewerIds,
+        IReadOnlyList<int> profileIds,
         CancellationToken ct = default)
     {
         var watched = await db.WatchEvents
-            .Where(e => viewerIds.Contains(e.ViewerId))
+            .Where(e => profileIds.Contains(e.ProfileId))
             .Select(e => e.MediaItemId)
             .Distinct()
             .ToListAsync(ct);
@@ -81,10 +81,28 @@ public class FeedbackService(
     /// neither can a later Tautulli sync of the same evening create a conflict — that
     /// arrives under a different source.
     /// </summary>
-    private async Task RecordWatchAsync(int mediaItemId, int viewerId, CancellationToken ct)
+    private async Task RecordWatchAsync(int mediaItemId, int personId, CancellationToken ct)
     {
         var today = DateTimeOffset.UtcNow;
-        var sourceKey = $"manual:{viewerId}:{mediaItemId}:{today:yyyy-MM-dd}";
+
+        // A manual watch is attributed to the person's primary profile, falling back to
+        // any profile they belong to. Without one there is nowhere to hang the event,
+        // so the verdict is recorded and the watch is skipped rather than invented.
+        var profileId = await db.ProfileMemberships
+            .Where(m => m.PersonId == personId)
+            .OrderByDescending(m => m.IsPrimary)
+            .Select(m => (int?)m.ProfileId)
+            .FirstOrDefaultAsync(ct);
+
+        if (profileId is null)
+        {
+            logger.LogWarning(
+                "Person {PersonId} belongs to no profile, so the manual watch was not recorded.",
+                personId);
+            return;
+        }
+
+        var sourceKey = $"manual:{personId}:{mediaItemId}:{today:yyyy-MM-dd}";
 
         var exists = await db.WatchEvents.AnyAsync(
             e => e.Source == WatchSource.Manual && e.SourceKey == sourceKey, ct);
@@ -96,7 +114,7 @@ public class FeedbackService(
 
         db.WatchEvents.Add(new WatchEvent
         {
-            ViewerId = viewerId,
+            ProfileId = profileId.Value,
             MediaItemId = mediaItemId,
             Source = WatchSource.Manual,
             SourceKey = sourceKey,
@@ -110,7 +128,7 @@ public class FeedbackService(
         await db.SaveChangesAsync(ct);
 
         logger.LogInformation(
-            "Recorded a manual watch of media {MediaId} for viewer {ViewerId}.",
-            mediaItemId, viewerId);
+            "Recorded a manual watch of media {MediaId} for person {PersonId} on profile {ProfileId}.",
+            mediaItemId, personId, profileId);
     }
 }

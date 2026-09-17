@@ -20,10 +20,10 @@
     <div class="row">
         <div style="flex: 1; min-width: 180px;">
             <label for="viewer">Rating as</label>
-            <select id="viewer" @bind="ViewerId">
-                @foreach (var viewer in _viewers)
+            <select id="viewer" @bind="PersonId">
+                @foreach (var person in _people)
                 {
-                    <option value="@viewer.Id">@viewer.DisplayName</option>
+                    <option value="@person.Id">@person.Name</option>
                 }
             </select>
         </div>
@@ -44,10 +44,10 @@
     </div>
 </div>
 
-@if (_viewers.Count == 0)
+@if (_people.Count == 0)
 {
     <div class="notice">
-        No viewers yet — sync some history on the <a href="setup">Setup</a> page first.
+        No people yet — add them on the <a href="household">Household</a> page.
     </div>
 }
 else if (_rows.Count == 0)
@@ -113,24 +113,30 @@ else
 
     private const int PageSize = 60;
 
-    private List<Viewer> _viewers = [];
+    private List<Person> _people = [];
     private List<Row> _rows = [];
     private readonly Dictionary<int, List<EpisodeRow>> _episodes = [];
     private readonly HashSet<int> _expanded = [];
 
-    private int _viewerId;
+    private int _personId;
+
+    /// <summary>
+    /// The profiles this person watches on. Watch history hangs off profiles, so rating
+    /// "what I have seen" means gathering every account they are a member of.
+    /// </summary>
+    private List<int> _profileIds = [];
     private string _search = string.Empty;
     private Filter _filter = Filter.Recent;
 
-    private int ViewerId
+    private int PersonId
     {
-        get => _viewerId;
+        get => _personId;
         set
         {
-            _viewerId = value;
+            _personId = value;
             _expanded.Clear();
             _episodes.Clear();
-            _ = LoadRowsAsync();
+            _ = ReloadForPersonAsync();
         }
     }
 
@@ -146,13 +152,24 @@ else
 
     protected override async Task OnInitializedAsync()
     {
-        _viewers = await Db.Viewers.OrderBy(v => v.DisplayName).ToListAsync();
-        _viewerId = _viewers.FirstOrDefault()?.Id ?? 0;
+        _people = await Db.People.OrderBy(p => p.Name).ToListAsync();
+        _personId = _people.FirstOrDefault(p => p.InHousehold)?.Id ?? _people.FirstOrDefault()?.Id ?? 0;
 
-        if (_viewerId != 0)
+        if (_personId != 0)
         {
-            await LoadRowsAsync();
+            await ReloadForPersonAsync();
         }
+    }
+
+    private async Task ReloadForPersonAsync()
+    {
+        _profileIds = await Db.ProfileMemberships
+            .Where(m => m.PersonId == _personId)
+            .Select(m => m.ProfileId)
+            .Distinct()
+            .ToListAsync();
+
+        await LoadRowsAsync();
     }
 
     private async Task SetFilter(Filter filter)
@@ -163,7 +180,7 @@ else
 
     private async Task LoadRowsAsync()
     {
-        if (_viewerId == 0)
+        if (_personId == 0)
         {
             return;
         }
@@ -171,7 +188,7 @@ else
         // Only titles this viewer has actually watched are offered — rating something
         // you have not seen is not a signal worth collecting.
         var watched = Db.WatchEvents
-            .Where(e => e.ViewerId == _viewerId && e.MediaItem != null);
+            .Where(e => _profileIds.Contains(e.ProfileId) && e.MediaItem != null);
 
         if (!string.IsNullOrWhiteSpace(_search))
         {
@@ -198,7 +215,7 @@ else
             .ToDictionaryAsync(m => m.Id);
 
         var ratings = await Db.Ratings
-            .Where(r => r.ViewerId == _viewerId
+            .Where(r => r.PersonId == _personId
                 && itemIds.Contains(r.MediaItemId)
                 && r.SeasonNumber == null)
             .ToDictionaryAsync(r => r.MediaItemId, r => r.Value);
@@ -236,7 +253,7 @@ else
     private async Task LoadEpisodesAsync(int mediaItemId)
     {
         var watched = await Db.WatchEvents
-            .Where(e => e.ViewerId == _viewerId
+            .Where(e => _profileIds.Contains(e.ProfileId)
                 && e.MediaItemId == mediaItemId
                 && e.SeasonNumber != null)
             .GroupBy(e => new { e.SeasonNumber, e.EpisodeNumber })
@@ -252,7 +269,7 @@ else
             .ToListAsync();
 
         var ratings = await Db.Ratings
-            .Where(r => r.ViewerId == _viewerId
+            .Where(r => r.PersonId == _personId
                 && r.MediaItemId == mediaItemId
                 && r.SeasonNumber != null)
             .ToListAsync();
@@ -272,13 +289,13 @@ else
 
     private async Task RateTitle(int mediaItemId, RatingValue value)
     {
-        await Ratings.SetAsync(_viewerId, mediaItemId, value);
+        await Ratings.SetAsync(_personId, mediaItemId, value);
         await LoadRowsAsync();
     }
 
     private async Task RateEpisode(int mediaItemId, int season, int? episode, RatingValue value)
     {
-        await Ratings.SetAsync(_viewerId, mediaItemId, value, season, episode);
+        await Ratings.SetAsync(_personId, mediaItemId, value, season, episode);
         await LoadEpisodesAsync(mediaItemId);
     }
 }

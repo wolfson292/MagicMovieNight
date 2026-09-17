@@ -113,7 +113,8 @@ public class ClaudeLiveTests(ITestOutputHelper output)
     private static TasteProfile SampleProfile() => new()
     {
         Subject = "the whole household — Scott and Sam",
-        ViewerIds = [1, 2],
+        PersonIds = [1, 2],
+        ProfileIds = [10, 11],
         TotalWatches = 4210,
         FirstWatch = new DateTimeOffset(2016, 4, 2, 0, 0, 0, TimeSpan.Zero),
         LastWatch = DateTimeOffset.UtcNow.AddDays(-1),

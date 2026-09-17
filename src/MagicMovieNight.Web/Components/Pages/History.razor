@@ -19,8 +19,8 @@
         <div style="font-size: 1.9rem; font-weight: 700;">@_totalItems.ToString("N0")</div>
     </div>
     <div class="panel" style="flex: 1; min-width: 140px;">
-        <div class="muted">Viewers</div>
-        <div style="font-size: 1.9rem; font-weight: 700;">@_totalViewers.ToString("N0")</div>
+        <div class="muted">Profiles</div>
+        <div style="font-size: 1.9rem; font-weight: 700;">@_totalProfiles.ToString("N0")</div>
     </div>
 </div>
 
@@ -55,7 +55,7 @@
         <thead>
             <tr>
                 <th>When</th>
-                <th>Who</th>
+                <th>Profile</th>
                 <th>What</th>
                 <th>Source</th>
                 <th>Got through</th>
@@ -66,7 +66,7 @@
             {
                 <tr>
                     <td>@e.WatchedAt.ToLocalTime().ToString("MMM d")</td>
-                    <td>@(e.Viewer?.DisplayName ?? "—")</td>
+                    <td>@(e.Profile?.DisplayName ?? "—")</td>
                     <td>
                         @e.MediaItem?.DisplayTitle
                         @if (e.SeasonNumber is not null)
@@ -122,7 +122,7 @@
 
     private int _totalEvents;
     private int _totalItems;
-    private int _totalViewers;
+    private int _totalProfiles;
     private List<SourceStat> _bySource = [];
     private List<WatchEvent> _recent = [];
     private List<RecommendationRun> _runs = [];
@@ -131,7 +131,7 @@
     {
         _totalEvents = await Db.WatchEvents.CountAsync();
         _totalItems = await Db.MediaItems.CountAsync();
-        _totalViewers = await Db.Viewers.CountAsync();
+        _totalProfiles = await Db.Profiles.CountAsync();
 
         _bySource = await Db.WatchEvents
             .GroupBy(e => e.Source)
@@ -144,7 +144,7 @@
             .ToListAsync();
 
         _recent = await Db.WatchEvents
-            .Include(e => e.Viewer)
+            .Include(e => e.Profile)
             .Include(e => e.MediaItem)
             .OrderByDescending(e => e.WatchedAt)
             .Take(50)

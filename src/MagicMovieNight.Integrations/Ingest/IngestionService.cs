@@ -76,7 +76,7 @@ public class IngestionService(
         {
             await foreach (var raw in source.PullAsync(since, ct))
             {
-                var outcome = await IngestOneAsync(raw, source.Source, viewerOverride: null, ct);
+                var outcome = await IngestOneAsync(raw, source.Source, profileOverride: null, ct);
                 result = result.Add(outcome);
 
                 if (highWater is null || raw.WatchedAt > highWater)
@@ -106,21 +106,21 @@ public class IngestionService(
     }
 
     /// <summary>
-    /// Imports an uploaded export. Unlike a pull, the caller says which viewer the file
-    /// belongs to — a Netflix CSV is downloaded per profile and the file itself often
-    /// does not say whose it is.
+    /// Imports an uploaded export. Unlike a pull, the caller says which profile the file
+    /// belongs to, because a per-profile Netflix download carries no profile column.
+    /// A full account export does, and those rows route themselves.
     /// </summary>
     public async Task<IngestResult> ImportAsync(
         IHistoryImporter importer,
         Stream file,
-        int viewerId,
+        int profileId,
         CancellationToken ct = default)
     {
         var result = new IngestResult();
 
         await foreach (var raw in importer.ParseAsync(file, ct))
         {
-            var outcome = await IngestOneAsync(raw, importer.Source, viewerId, ct);
+            var outcome = await IngestOneAsync(raw, importer.Source, profileId, ct);
             result = result.Add(outcome);
         }
 
@@ -134,7 +134,7 @@ public class IngestionService(
     private async Task<IngestOutcome> IngestOneAsync(
         RawWatchEvent raw,
         WatchSource source,
-        int? viewerOverride,
+        int? profileOverride,
         CancellationToken ct)
     {
         var exists = await db.WatchEvents
@@ -151,11 +151,11 @@ public class IngestionService(
             return IngestOutcome.Unresolved;
         }
 
-        var viewerId = viewerOverride ?? await ResolveViewerAsync(raw.ExternalViewerId, source, ct);
+        var profileId = profileOverride ?? await ResolveProfileAsync(raw.ExternalProfileId, source, ct);
 
         db.WatchEvents.Add(new WatchEvent
         {
-            ViewerId = viewerId,
+            ProfileId = profileId,
             MediaItemId = item.Id,
             Source = source,
             SourceKey = raw.SourceKey,
@@ -173,50 +173,53 @@ public class IngestionService(
     }
 
     /// <summary>
-    /// Maps a source's own user id onto a household viewer, creating one on first
-    /// sight. Auto-creating beats dropping the event: an unmapped viewer is visible
-    /// in the UI and can be merged, whereas a dropped watch is gone.
+    /// Maps a source's own user id onto a profile, creating one on first sight.
+    ///
+    /// Deliberately creates a profile and not a person: a source only ever tells us
+    /// which account was used, and deciding who that represents is a judgement the
+    /// household makes in the UI. A new profile simply arrives unassigned.
     /// </summary>
-    private async Task<int> ResolveViewerAsync(
+    private async Task<int> ResolveProfileAsync(
         string? externalId,
         WatchSource source,
         CancellationToken ct)
     {
         externalId = string.IsNullOrWhiteSpace(externalId) ? "unknown" : externalId.Trim();
 
-        var identity = await db.ViewerIdentities
+        var identity = await db.ProfileIdentities
             .FirstOrDefaultAsync(i => i.Source == source && i.ExternalId == externalId, ct);
 
         if (identity is not null)
         {
-            return identity.ViewerId;
+            return identity.ProfileId;
         }
 
-        // Someone with the same display name from another source is almost certainly
-        // the same person — match on that before creating a duplicate.
-        var viewer = await db.Viewers
-            .FirstOrDefaultAsync(v => v.DisplayName.ToLower() == externalId.ToLower(), ct);
+        // The same display name on another source is almost always the same account,
+        // so match on that rather than creating a near-duplicate profile.
+        var profile = await db.Profiles
+            .FirstOrDefaultAsync(p => p.DisplayName.ToLower() == externalId.ToLower(), ct);
 
-        if (viewer is null)
+        if (profile is null)
         {
-            viewer = new Viewer { DisplayName = externalId };
-            db.Viewers.Add(viewer);
+            profile = new Profile { DisplayName = externalId };
+            db.Profiles.Add(profile);
             await db.SaveChangesAsync(ct);
 
             logger.LogInformation(
-                "Discovered new viewer '{Name}' from {Source}.", externalId, source);
+                "Discovered new profile '{Name}' from {Source}; it is unassigned until "
+                + "someone says who it represents.", externalId, source);
         }
 
-        db.ViewerIdentities.Add(new ViewerIdentity
+        db.ProfileIdentities.Add(new ProfileIdentity
         {
-            ViewerId = viewer.Id,
+            ProfileId = profile.Id,
             Source = source,
             ExternalId = externalId,
         });
 
         await db.SaveChangesAsync(ct);
 
-        return viewer.Id;
+        return profile.Id;
     }
 }
 

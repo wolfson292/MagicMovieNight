@@ -9,8 +9,14 @@ public record TasteProfile
 {
     public required string Subject { get; init; }
 
-    /// <summary>Viewer ids this profile covers. More than one means a household blend.</summary>
-    public required IReadOnlyList<int> ViewerIds { get; init; }
+    /// <summary>People this profile covers. More than one means a household blend.</summary>
+    public required IReadOnlyList<int> PersonIds { get; init; }
+
+    /// <summary>
+    /// Every profile those people watch on, resolved once here so consumers never have
+    /// to redo the person-to-profile lookup. This is what watch history is queried by.
+    /// </summary>
+    public required IReadOnlyList<int> ProfileIds { get; init; }
 
     public int TotalWatches { get; init; }
 

@@ -10,8 +10,8 @@ public class RecommendationRun
 
     public DateTimeOffset CreatedAt { get; set; } = DateTimeOffset.UtcNow;
 
-    /// <summary>Viewers this run was for. Empty means the whole household.</summary>
-    public List<int> ViewerIds { get; set; } = [];
+    /// <summary>People this run was for. Empty means the whole household.</summary>
+    public List<int> PersonIds { get; set; } = [];
 
     /// <summary>Free-text mood/constraint the household typed in, e.g. "something short and funny".</summary>
     public string? Prompt { get; set; }

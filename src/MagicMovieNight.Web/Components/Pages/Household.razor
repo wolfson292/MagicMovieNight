@@ -8,132 +8,230 @@
 
 <h1>Household</h1>
 <p class="subtitle">
-    Viewers are discovered automatically as history syncs. The same person often shows
-    up once per source — merge them so their taste is one profile, not three.
+    People are humans. Profiles are accounts. They are not the same thing — a Netflix
+    profile can mean two people on the sofa, and a Plex profile named after the house
+    means whoever picked up the remote. Map each profile to whoever it represents.
 </p>
 
+<h2>People</h2>
 <div class="panel">
     <table>
         <thead>
             <tr>
                 <th>Name</th>
                 <th>Watches</th>
-                <th>Known as</th>
-                <th>In household picks</th>
+                <th>Watches on</th>
+                <th>In default picks</th>
+                <th>Lives here</th>
                 <th></th>
             </tr>
         </thead>
         <tbody>
-            @foreach (var row in _rows)
+            @foreach (var person in _people)
             {
                 <tr>
-                    <td>@row.Viewer.DisplayName</td>
-                    <td>@row.WatchCount.ToString("N0")</td>
+                    <td>@person.Name</td>
+                    <td>@WatchCountFor(person.Id).ToString("N0")</td>
                     <td class="muted">
-                        @if (row.Viewer.Identities.Count == 0)
-                        {
-                            <text>—</text>
+                        @{
+                            var owned = _profiles
+                                .Where(p => p.Memberships.Any(m => m.PersonId == person.Id))
+                                .Select(p => p.DisplayName)
+                                .ToList();
                         }
-                        else
-                        {
-                            @string.Join(", ", row.Viewer.Identities.Select(i => $"{i.Source}: {i.ExternalId}"))
-                        }
+                        @(owned.Count == 0 ? "— nothing mapped yet" : string.Join(", ", owned))
                     </td>
                     <td>
-                        <input type="checkbox" checked="@row.Viewer.IncludeInHousehold"
-                               @onchange="e => ToggleInclude(row.Viewer, e)" style="width: auto;" />
+                        <input type="checkbox" checked="@person.InHousehold"
+                               @onchange="e => SetInHousehold(person, e)" style="width: auto;" />
                     </td>
                     <td>
-                        @if (_mergeSourceId == row.Viewer.Id)
-                        {
-                            <span class="muted">merging into…</span>
-                        }
-                        else if (_mergeSourceId is null)
-                        {
-                            <button class="chip" @onclick="() => _mergeSourceId = row.Viewer.Id">Merge</button>
-                        }
-                        else
-                        {
-                            <button class="chip" @onclick="() => MergeInto(row.Viewer.Id)">Merge into this</button>
-                        }
+                        <input type="checkbox" checked="@person.IsResident"
+                               @onchange="e => SetResident(person, e)" style="width: auto;" />
+                    </td>
+                    <td>
+                        <button class="chip" @onclick="() => DeletePerson(person)">Remove</button>
                     </td>
                 </tr>
             }
         </tbody>
     </table>
 
-    @if (_mergeSourceId is not null)
-    {
-        <div class="row" style="margin-top: 1rem;">
-            <span class="muted">Pick the viewer to merge into, or</span>
-            <button class="chip" @onclick="() => _mergeSourceId = null">cancel</button>
-        </div>
-    }
+    <div class="row" style="margin-top: 1rem;">
+        <input type="text" @bind="_newPersonName" placeholder="Add a person"
+               style="max-width: 240px;" @onkeydown="AddPersonOnEnter" />
+        <button class="chip" @onclick="AddPerson" disabled="@string.IsNullOrWhiteSpace(_newPersonName)">
+            Add
+        </button>
+    </div>
+</div>
 
-    @if (_rows.Count == 0)
+<h2>Profiles</h2>
+<div class="panel">
+    <p class="muted" style="margin-top: 0;">
+        Discovered automatically as history syncs. Tick everyone a profile represents —
+        if you and Angela watch together on her account, tick both, and that history
+        counts for both of you.
+    </p>
+
+    <table>
+        <thead>
+            <tr>
+                <th>Profile</th>
+                <th>Watches</th>
+                <th>Known as</th>
+                <th>Represents</th>
+            </tr>
+        </thead>
+        <tbody>
+            @foreach (var profile in _profiles)
+            {
+                <tr class="@(profile.Memberships.Count == 0 ? "unassigned" : "")">
+                    <td>
+                        @profile.DisplayName
+                        @if (profile.Memberships.Count == 0)
+                        {
+                            <div class="muted" style="font-size: 0.8rem;">unassigned</div>
+                        }
+                    </td>
+                    <td>@WatchCountForProfile(profile.Id).ToString("N0")</td>
+                    <td class="muted" style="font-size: 0.85rem;">
+                        @string.Join(", ", profile.Identities.Select(i => $"{i.Source}: {i.ExternalId}"))
+                    </td>
+                    <td>
+                        <div class="row" style="gap: 0.4rem;">
+                            @foreach (var person in _people)
+                            {
+                                var isMember = profile.Memberships.Any(m => m.PersonId == person.Id);
+                                <button class="chip @(isMember ? "on" : "")"
+                                        @onclick="() => ToggleMembership(profile, person)">
+                                    @person.Name
+                                </button>
+                            }
+                            @if (_people.Count == 0)
+                            {
+                                <span class="muted">Add people first</span>
+                            }
+                        </div>
+                    </td>
+                </tr>
+            }
+        </tbody>
+    </table>
+
+    @if (_profiles.Count == 0)
     {
-        <p class="muted">
-            No viewers yet. Run a sync on the <a href="setup">Setup</a> page.
-        </p>
+        <p class="muted">No profiles yet. Run a sync on the <a href="setup">Setup</a> page.</p>
     }
 </div>
 
-@code {
-    private record Row(Viewer Viewer, int WatchCount);
+<style>
+    tr.unassigned td:first-child { border-left: 2px solid var(--accent); }
+</style>
 
-    private List<Row> _rows = [];
-    private int? _mergeSourceId;
+@code {
+    private List<Person> _people = [];
+    private List<Profile> _profiles = [];
+    private Dictionary<int, int> _watchesByProfile = [];
+    private string _newPersonName = string.Empty;
 
     protected override async Task OnInitializedAsync() => await LoadAsync();
 
     private async Task LoadAsync()
     {
-        var viewers = await Db.Viewers
-            .Include(v => v.Identities)
-            .OrderBy(v => v.DisplayName)
+        _people = await Db.People.OrderBy(p => p.Name).ToListAsync();
+
+        _profiles = await Db.Profiles
+            .Include(p => p.Identities)
+            .Include(p => p.Memberships)
+            .OrderByDescending(p => p.Memberships.Count)
+            .ThenBy(p => p.DisplayName)
             .ToListAsync();
 
-        var counts = await Db.WatchEvents
-            .GroupBy(e => e.ViewerId)
-            .Select(g => new { ViewerId = g.Key, Count = g.Count() })
-            .ToDictionaryAsync(x => x.ViewerId, x => x.Count);
-
-        _rows = viewers
-            .Select(v => new Row(v, counts.GetValueOrDefault(v.Id)))
-            .ToList();
+        _watchesByProfile = await Db.WatchEvents
+            .GroupBy(e => e.ProfileId)
+            .Select(g => new { ProfileId = g.Key, Count = g.Count() })
+            .ToDictionaryAsync(x => x.ProfileId, x => x.Count);
     }
 
-    private async Task ToggleInclude(Viewer viewer, ChangeEventArgs e)
-    {
-        viewer.IncludeInHousehold = e.Value is true;
-        await Db.SaveChangesAsync();
-    }
+    private int WatchCountForProfile(int profileId) => _watchesByProfile.GetValueOrDefault(profileId);
 
     /// <summary>
-    /// Repoints one viewer's events and identities at another, then deletes the empty
-    /// shell. This is how "scott" from Tautulli and "swolf" from Trakt become one person.
+    /// A person's history is the sum of every profile they are a member of, which is
+    /// the whole point of the split — shared viewing counts for everyone on the sofa.
     /// </summary>
-    private async Task MergeInto(int targetId)
+    private int WatchCountFor(int personId) =>
+        _profiles
+            .Where(p => p.Memberships.Any(m => m.PersonId == personId))
+            .Sum(p => WatchCountForProfile(p.Id));
+
+    private async Task AddPersonOnEnter(KeyboardEventArgs e)
     {
-        if (_mergeSourceId is null || _mergeSourceId == targetId)
+        if (e.Key == "Enter")
         {
-            _mergeSourceId = null;
+            await AddPerson();
+        }
+    }
+
+    private async Task AddPerson()
+    {
+        var name = _newPersonName.Trim();
+
+        if (name.Length == 0 || _people.Any(p => p.Name.Equals(name, StringComparison.OrdinalIgnoreCase)))
+        {
             return;
         }
 
-        var sourceId = _mergeSourceId.Value;
+        Db.People.Add(new Person { Name = name, InHousehold = false });
+        await Db.SaveChangesAsync();
 
-        await Db.WatchEvents
-            .Where(e => e.ViewerId == sourceId)
-            .ExecuteUpdateAsync(s => s.SetProperty(e => e.ViewerId, targetId));
+        _newPersonName = string.Empty;
+        await LoadAsync();
+    }
 
-        await Db.ViewerIdentities
-            .Where(i => i.ViewerId == sourceId)
-            .ExecuteUpdateAsync(s => s.SetProperty(i => i.ViewerId, targetId));
+    private async Task DeletePerson(Person person)
+    {
+        // Memberships cascade; watch events hang off profiles and are untouched, so
+        // removing a person never destroys history.
+        Db.People.Remove(person);
+        await Db.SaveChangesAsync();
+        await LoadAsync();
+    }
 
-        await Db.Viewers.Where(v => v.Id == sourceId).ExecuteDeleteAsync();
+    private async Task SetInHousehold(Person person, ChangeEventArgs e)
+    {
+        person.InHousehold = e.Value is true;
+        await Db.SaveChangesAsync();
+    }
 
-        _mergeSourceId = null;
+    private async Task SetResident(Person person, ChangeEventArgs e)
+    {
+        person.IsResident = e.Value is true;
+        await Db.SaveChangesAsync();
+    }
+
+    private async Task ToggleMembership(Profile profile, Person person)
+    {
+        var existing = await Db.ProfileMemberships
+            .FirstOrDefaultAsync(m => m.ProfileId == profile.Id && m.PersonId == person.Id);
+
+        if (existing is not null)
+        {
+            Db.ProfileMemberships.Remove(existing);
+        }
+        else
+        {
+            Db.ProfileMemberships.Add(new ProfileMembership
+            {
+                ProfileId = profile.Id,
+                PersonId = person.Id,
+                // The first person on a profile is treated as its principal owner,
+                // which is what a manual watch gets attributed to.
+                IsPrimary = profile.Memberships.Count == 0,
+            });
+        }
+
+        await Db.SaveChangesAsync();
         await LoadAsync();
     }
 }

@@ -18,7 +18,7 @@ public class TasteProfileBuilderTests
             Watch("New Comedy", Now.AddDays(-5), ["Comedy"]),
         };
 
-        var profile = TasteProfileBuilder.Build("test", [1], events, [], [], Now);
+        var profile = TasteProfileBuilder.Build("test", [1], [1], events, [], [], Now);
 
         // Three old thrillers must not outrank one comedy from last week.
         Assert.Equal("Comedy", profile.TopGenres[0].Name);
@@ -43,7 +43,7 @@ public class TasteProfileBuilderTests
             Watch("Bailed On It", Now.AddDays(-1), ["Horror"], percent: 8),
         };
 
-        var profile = TasteProfileBuilder.Build("test", [1], events, [], [], Now);
+        var profile = TasteProfileBuilder.Build("test", [1], [1], events, [], [], Now);
 
         Assert.Contains("Bailed On It", profile.Abandoned[0]);
         Assert.DoesNotContain(profile.TopGenres, g => g.Name == "Horror");
@@ -61,7 +61,7 @@ public class TasteProfileBuilderTests
             Watch(item, Now.AddDays(-2), percent: 98),
         };
 
-        var profile = TasteProfileBuilder.Build("test", [1], events, [], [], Now);
+        var profile = TasteProfileBuilder.Build("test", [1], [1], events, [], [], Now);
 
         // They came back and finished it — that is the opposite of a negative signal.
         Assert.Empty(profile.Abandoned);
@@ -73,7 +73,7 @@ public class TasteProfileBuilderTests
     {
         var events = new[] { Watch("Netflix Thing", Now.AddDays(-3), ["Comedy"], percent: null) };
 
-        var profile = TasteProfileBuilder.Build("test", [1], events, [], [], Now);
+        var profile = TasteProfileBuilder.Build("test", [1], [1], events, [], [], Now);
 
         Assert.Contains("Netflix Thing", profile.RecentlyLoved);
     }
@@ -88,7 +88,7 @@ public class TasteProfileBuilderTests
             Watch(Item("Epic", ["Drama"], runtime: 240), Now.AddDays(-3), percent: 5),
         };
 
-        var profile = TasteProfileBuilder.Build("test", [1], events, [], [], Now);
+        var profile = TasteProfileBuilder.Build("test", [1], [1], events, [], [], Now);
 
         // The three-hour film they bailed on should not raise the household's tolerance.
         Assert.Equal(100, profile.TypicalMovieRuntime);
@@ -105,7 +105,7 @@ public class TasteProfileBuilderTests
             Watch(Item("Film B", ["Drama"]), Now.AddDays(-4)),
         };
 
-        var profile = TasteProfileBuilder.Build("test", [1], events, [], [], Now);
+        var profile = TasteProfileBuilder.Build("test", [1], [1], events, [], [], Now);
 
         Assert.Equal(0.5, profile.ShowBias, 3);
     }
@@ -113,7 +113,7 @@ public class TasteProfileBuilderTests
     [Fact]
     public void EmptyHistoryProducesAUsableProfile()
     {
-        var profile = TasteProfileBuilder.Build("test", [1], [], [], [], Now);
+        var profile = TasteProfileBuilder.Build("test", [1], [1], [], [], [], Now);
 
         Assert.Equal(0, profile.TotalWatches);
         Assert.Empty(profile.TopGenres);
@@ -150,7 +150,7 @@ public class TasteProfileBuilderTests
         SourceFidelity fidelity = SourceFidelity.Full) =>
         new()
         {
-            ViewerId = 1,
+            ProfileId = 1,
             MediaItem = item,
             MediaItemId = item.Id,
             WatchedAt = at,

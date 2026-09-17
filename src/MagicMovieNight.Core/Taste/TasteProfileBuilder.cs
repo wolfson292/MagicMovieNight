@@ -32,7 +32,8 @@ public static class TasteProfileBuilder
 
     public static TasteProfile Build(
         string subject,
-        IReadOnlyList<int> viewerIds,
+        IReadOnlyList<int> personIds,
+        IReadOnlyList<int> profileIds,
         IReadOnlyList<WatchEvent> events,
         IReadOnlyList<Rating> ratings,
         IReadOnlyList<string> inProgress,
@@ -147,7 +148,8 @@ public static class TasteProfileBuilder
         return new TasteProfile
         {
             Subject = subject,
-            ViewerIds = viewerIds,
+            PersonIds = personIds,
+            ProfileIds = profileIds,
             TotalWatches = events.Count,
             FirstWatch = events.Count == 0 ? null : events.Min(e => e.WatchedAt),
             LastWatch = events.Count == 0 ? null : events.Max(e => e.WatchedAt),

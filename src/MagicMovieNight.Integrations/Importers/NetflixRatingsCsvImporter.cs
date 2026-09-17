@@ -110,7 +110,7 @@ public class NetflixRatingsCsvImporter(ILogger<NetflixRatingsCsvImporter> logger
                 Value = value.Value,
                 Stars = stars,
                 RatedAt = ratedAt,
-                ExternalViewerId = CsvColumnMap.Read(csv, profileColumn),
+                ExternalProfileId = CsvColumnMap.Read(csv, profileColumn),
                 SeasonNumber = season,
                 EpisodeNumber = episode,
                 SourceKey = StableKey(rawTitle, episodeTitle),

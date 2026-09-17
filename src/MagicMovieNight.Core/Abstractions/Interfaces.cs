@@ -48,8 +48,8 @@ public record RawWatchEvent
 
     public required DateTimeOffset WatchedAt { get; init; }
 
-    /// <summary>Source-specific viewer id, resolved against <see cref="ViewerIdentity"/>.</summary>
-    public string? ExternalViewerId { get; init; }
+    /// <summary>Source-specific profile id, resolved against <see cref="ProfileIdentity"/>.</summary>
+    public string? ExternalProfileId { get; init; }
 
     public int? TmdbId { get; init; }
 
@@ -99,7 +99,7 @@ public record RawRating
 
     public required DateTimeOffset RatedAt { get; init; }
 
-    public string? ExternalViewerId { get; init; }
+    public string? ExternalProfileId { get; init; }
 
     public int? TmdbId { get; init; }
 
@@ -183,8 +183,8 @@ public interface IRecommendationEngine
 
 public record RecommendationRequest
 {
-    /// <summary>Empty means the whole household.</summary>
-    public IReadOnlyList<int> ViewerIds { get; init; } = [];
+    /// <summary>Empty means everyone flagged as part of the household.</summary>
+    public IReadOnlyList<int> PersonIds { get; init; } = [];
 
     /// <summary>Optional mood or constraint typed by the household.</summary>
     public string? Prompt { get; init; }

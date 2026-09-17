@@ -9,9 +9,10 @@ public class WatchEvent
 {
     public long Id { get; set; }
 
-    public int ViewerId { get; set; }
+    /// <summary>The account this was watched on. Who that represents is a separate question.</summary>
+    public int ProfileId { get; set; }
 
-    public Viewer? Viewer { get; set; }
+    public Profile? Profile { get; set; }
 
     public int MediaItemId { get; set; }
 

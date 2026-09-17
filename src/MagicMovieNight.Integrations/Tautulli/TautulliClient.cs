@@ -101,7 +101,7 @@ public class TautulliClient(
             Kind = kind,
             SourceKey = row.RowId > 0 ? row.RowId.ToString() : $"{row.Date}:{row.RatingKey}:{row.UserId}",
             WatchedAt = DateTimeOffset.FromUnixTimeSeconds(row.Date),
-            ExternalViewerId = row.User ?? row.FriendlyName,
+            ExternalProfileId = row.User ?? row.FriendlyName,
             PercentComplete = row.PercentComplete,
             Device = row.Player,
             SeasonNumber = row.ParentMediaIndex,

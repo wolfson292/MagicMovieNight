@@ -63,7 +63,7 @@ public class NetflixCsvImporter : IHistoryImporter
                 Title = title,
                 Kind = kind,
                 WatchedAt = watchedAt.Value,
-                ExternalViewerId = CsvColumnMap.Read(csv, profileColumn),
+                ExternalProfileId = CsvColumnMap.Read(csv, profileColumn),
                 SeasonNumber = season,
                 EpisodeNumber = episode,
                 // The export has no completion data at all — every row is a title and
