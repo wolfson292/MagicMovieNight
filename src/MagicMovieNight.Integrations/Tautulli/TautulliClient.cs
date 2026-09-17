@@ -99,7 +99,7 @@ public class TautulliClient(
             Title = title,
             Year = row.Year,
             Kind = kind,
-            SourceKey = row.RowId?.ToString() ?? $"{row.Date}:{row.RatingKey}:{row.UserId}",
+            SourceKey = row.RowId > 0 ? row.RowId.ToString() : $"{row.Date}:{row.RatingKey}:{row.UserId}",
             WatchedAt = DateTimeOffset.FromUnixTimeSeconds(row.Date),
             ExternalViewerId = row.User ?? row.FriendlyName,
             PercentComplete = row.PercentComplete,
@@ -139,13 +139,16 @@ public record TautulliData
 public record TautulliHistoryRow
 {
     [JsonPropertyName("row_id")]
-    public long? RowId { get; init; }
+    [JsonConverter(typeof(TolerantLongConverter))]
+    public long RowId { get; init; }
 
+    [JsonConverter(typeof(TolerantLongConverter))]
     public long Date { get; init; }
 
     public string? User { get; init; }
 
     [JsonPropertyName("user_id")]
+    [JsonConverter(typeof(TolerantLongConverter))]
     public long UserId { get; init; }
 
     [JsonPropertyName("friendly_name")]
@@ -162,19 +165,26 @@ public record TautulliHistoryRow
     [JsonPropertyName("grandparent_title")]
     public string? GrandparentTitle { get; init; }
 
+    [JsonConverter(typeof(TolerantIntConverter))]
     public int? Year { get; init; }
 
     [JsonPropertyName("percent_complete")]
+    [JsonConverter(typeof(TolerantIntConverter))]
     public int? PercentComplete { get; init; }
 
     public string? Player { get; init; }
 
+    // Tautulli sends this as a number, not a string.
     [JsonPropertyName("rating_key")]
+    [JsonConverter(typeof(TolerantStringConverter))]
     public string? RatingKey { get; init; }
 
+    // Number for episodes, empty string for movies — varies row to row in one response.
     [JsonPropertyName("parent_media_index")]
+    [JsonConverter(typeof(TolerantIntConverter))]
     public int? ParentMediaIndex { get; init; }
 
     [JsonPropertyName("media_index")]
+    [JsonConverter(typeof(TolerantIntConverter))]
     public int? MediaIndex { get; init; }
 }
