@@ -26,6 +26,8 @@ public static class CandidateFilter
             // Exclusions are skipped wholesale when a rewatch is explicitly wanted.
             .Where(c => request.IncludeAlreadyWatched || !excludedMediaItemIds.Contains(c.Item.Id))
             .Where(c => !request.LibraryOnly || c.Item.InLibrary)
+            // Films or series, when one of them is what was asked for.
+            .Where(c => request.Kind is null || c.Item.Kind == request.Kind)
             // An unknown runtime is not a reason to exclude — that would drop every title
             // TMDB could not identify, which is exactly the long tail worth surfacing.
             .Where(c => request.MaxRuntimeMinutes is null

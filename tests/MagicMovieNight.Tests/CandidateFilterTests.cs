@@ -150,16 +150,61 @@ public class CandidateFilterTests
         Assert.Empty(kept);
     }
 
+    /// <summary>
+    /// Asking for a film means getting a film.
+    /// </summary>
+    /// <remarks>
+    /// A filter rather than a line in the prompt, and the difference is the
+    /// point: asking the model nicely is a request, removing every series from
+    /// the pool is a guarantee. It shows up on the night somebody has ninety
+    /// minutes and is offered a six-season show.
+    /// </remarks>
+    [Fact]
+    public void AskingForAFilmExcludesSeries()
+    {
+        var pool = new[] { Candidate(1, "Sicario"), Candidate(2, "Sharp Objects", kind: MediaKind.Show) };
+
+        var kept = CandidateFilter.Apply(
+            pool, new HashSet<int>(), new RecommendationRequest { Kind = MediaKind.Movie }, 10);
+
+        Assert.Single(kept);
+        Assert.Equal("Sicario", kept[0].Item.Title);
+    }
+
+    [Fact]
+    public void AskingForASeriesExcludesFilms()
+    {
+        var pool = new[] { Candidate(1, "Sicario"), Candidate(2, "Sharp Objects", kind: MediaKind.Show) };
+
+        var kept = CandidateFilter.Apply(
+            pool, new HashSet<int>(), new RecommendationRequest { Kind = MediaKind.Show }, 10);
+
+        Assert.Single(kept);
+        Assert.Equal("Sharp Objects", kept[0].Item.Title);
+    }
+
+    /// <summary>
+    /// No preference means BOTH, which is the default and the usual want: most
+    /// nights nobody cares which it is.
+    /// </summary>
+    [Fact]
+    public void NoPreferenceKeepsFilmsAndSeriesAlike()
+    {
+        var pool = new[] { Candidate(1, "Sicario"), Candidate(2, "Sharp Objects", kind: MediaKind.Show) };
+
+        Assert.Equal(2, CandidateFilter.Apply(pool, new HashSet<int>(), Anything, 10).Count);
+    }
+
     private static Candidate Candidate(
         int id, string title, double preScore = 1.0, int? runtime = 100,
-        bool inLibrary = false, string source = "test") =>
+        bool inLibrary = false, string source = "test", MediaKind kind = MediaKind.Movie) =>
         new()
         {
             Item = new MediaItem
             {
                 Id = id,
                 Title = title,
-                Kind = MediaKind.Movie,
+                Kind = kind,
                 RuntimeMinutes = runtime,
                 InLibrary = inLibrary,
             },

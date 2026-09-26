@@ -1,3 +1,4 @@
+using MagicMovieNight.Core.Abstractions;
 using MagicMovieNight.Core.Models;
 using MagicMovieNight.Data;
 using Microsoft.AspNetCore.DataProtection;
@@ -109,6 +110,80 @@ app.MapGet("/api/tonight", async (MovieNightDbContext db, int? take, Cancellatio
             pick.MediaItem.Overview,
             pick.MediaItem.InLibrary,
             pick.MediaItem.TmdbId,
+            pick.MediaItem.TvdbId,
+            pick.MediaItem.RuntimeMinutes,
+        })
+        .ToListAsync(token);
+
+    return Results.Ok(new
+    {
+        run = new { run.Id, run.CreatedAt, run.ModelId },
+        picks,
+    });
+});
+
+// Ask for a suggestion, in words.
+//
+// The same engine the Home page drives, reached over HTTP so the family app can
+// ask from a phone. Deliberately NOT a second recommendation path: everything
+// that makes a good suggestion -- the taste profile, the exclusions, the
+// candidate pool -- lives in that engine, and a simpler one here would quietly
+// give worse answers.
+//
+// SLOW AND NOT FREE. It gathers candidates and asks Claude, which takes tens of
+// seconds and costs tokens, so it is a POST rather than something a page can
+// trigger by being opened.
+app.MapPost("/api/suggest", async (
+    SuggestRequest ask,
+    IRecommendationEngine engine,
+    MovieNightDbContext db,
+    CancellationToken token) =>
+{
+    MediaKind? kind = ask.Kind?.ToLowerInvariant() switch
+    {
+        "movie" or "film" => MediaKind.Movie,
+        "show" or "tv" or "series" => MediaKind.Show,
+        _ => null,
+    };
+
+    RecommendationRun run = await engine.RecommendAsync(
+        new RecommendationRequest
+        {
+            Prompt = string.IsNullOrWhiteSpace(ask.Prompt) ? null : ask.Prompt.Trim(),
+            Count = Math.Clamp(ask.Count ?? 5, 1, 10),
+            Kind = kind,
+            LibraryOnly = ask.LibraryOnly ?? false,
+            MaxRuntimeMinutes = ask.MaxRuntimeMinutes,
+        },
+        token);
+
+    if (run.Error is not null)
+    {
+        // Answered rather than thrown: the caller is a phone, and "the model
+        // refused" is something to read, not a 500 to guess at.
+        return Results.Ok(new { error = run.Error, picks = Array.Empty<object>() });
+    }
+
+    var picks = await db.Recommendations
+        .Where(pick => pick.RunId == run.Id)
+        .OrderBy(pick => pick.Rank)
+        .Select(pick => new
+        {
+            pick.Rank,
+            pick.Pitch,
+            pick.BasedOn,
+            pick.WhereToWatch,
+            pick.Confidence,
+            verdict = pick.Verdict.ToString(),
+            title = pick.MediaItem!.Title,
+            pick.MediaItem.Year,
+            kind = pick.MediaItem.Kind.ToString(),
+            pick.MediaItem.PosterUrl,
+            pick.MediaItem.Overview,
+            pick.MediaItem.InLibrary,
+            pick.MediaItem.TmdbId,
+            pick.MediaItem.TvdbId,
+            pick.MediaItem.RuntimeMinutes,
         })
         .ToListAsync(token);
 
@@ -144,3 +219,7 @@ static bool TryPrepareKeyDirectory(string path)
 /// generate an internal Program class, which WebApplicationFactory cannot reach.
 /// </summary>
 public partial class Program;
+
+/// <summary>A suggestion asked for in words, as the family app sends it.</summary>
+internal sealed record SuggestRequest(
+    string? Prompt, string? Kind, int? Count, bool? LibraryOnly, int? MaxRuntimeMinutes);

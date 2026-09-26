@@ -203,4 +203,15 @@ public record RecommendationRequest
     /// is a real thing to want, and exclusion should not be a one-way door.
     /// </summary>
     public bool IncludeAlreadyWatched { get; init; }
+
+    /// <summary>
+    /// Ask for only films, or only series. Null means either.
+    /// </summary>
+    /// <remarks>
+    /// Worth having as a FILTER rather than a line in the prompt. Asking the
+    /// model nicely for "just a film" is a request; removing every series from
+    /// the candidates is a guarantee — and the difference shows up on the night
+    /// somebody has ninety minutes and is offered a six-season show.
+    /// </remarks>
+    public MediaKind? Kind { get; init; }
 }
