@@ -70,6 +70,46 @@ public class PageSmokeTests(ITestOutputHelper output)
         Assert.DoesNotContain("An error occurred while processing your request", history);
     }
 
+    /// <summary>
+    /// The JSON other things in the house read.
+    /// </summary>
+    /// <remarks>
+    /// Here rather than with the unit tests for the same reason the pages are:
+    /// it projects across a navigation property, and an EF projection that
+    /// cannot be translated compiles, deploys, and throws the first time
+    /// anything asks. Only running the query finds that.
+    ///
+    /// An empty database is the interesting case as well as the easy one --
+    /// there are no recommendations until somebody runs one, so "no picks yet"
+    /// is a normal answer this must give rather than an error.
+    /// </remarks>
+    [Fact]
+    public async Task TonightAnswersWithJsonEvenWithNothingToSuggest()
+    {
+        if (string.IsNullOrWhiteSpace(ConnectionString))
+        {
+            output.WriteLine("TEST_DATABASE_URL not set — skipping page smoke tests.");
+            return;
+        }
+
+        using var factory = CreateFactory();
+        using var client = factory.CreateClient();
+
+        var response = await client.GetAsync("/api/tonight");
+        var body = await response.Content.ReadAsStringAsync();
+
+        output.WriteLine($"/api/tonight -> {(int)response.StatusCode}: {body[..Math.Min(200, body.Length)]}");
+
+        Assert.True(
+            response.IsSuccessStatusCode,
+            $"/api/tonight returned {(int)response.StatusCode}. Body starts: "
+                + body[..Math.Min(400, body.Length)]);
+
+        using var parsed = System.Text.Json.JsonDocument.Parse(body);
+        Assert.True(parsed.RootElement.TryGetProperty("picks", out var picks));
+        Assert.Equal(System.Text.Json.JsonValueKind.Array, picks.ValueKind);
+    }
+
     private WebApplicationFactory<Program> CreateFactory() =>
         new WebApplicationFactory<Program>().WithWebHostBuilder(b =>
         {
