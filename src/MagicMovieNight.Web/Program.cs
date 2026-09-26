@@ -1,3 +1,4 @@
+using MagicMovieNight.Core.Models;
 using MagicMovieNight.Data;
 using Microsoft.AspNetCore.DataProtection;
 using MagicMovieNight.Integrations;
@@ -65,6 +66,58 @@ app.UseAntiforgery();
 
 app.MapStaticAssets();
 app.MapHealthChecks("/health");
+
+// The last set of picks, as JSON.
+//
+// FOR OTHER THINGS IN THE HOUSE TO READ. The family app shows tonight's
+// suggestion on its admin screen, and the alternative was for it to reach into
+// this app's Postgres and depend on a schema it does not own. A small endpoint
+// here is the narrower coupling: this app keeps the right to change how it
+// stores a recommendation, and owes only this shape.
+//
+// UNAUTHENTICATED, like the rest of this app, which is LAN-only and always has
+// been. The exposure does not change: whatever reaches this from outside the
+// house reaches it through something that authenticates in front.
+app.MapGet("/api/tonight", async (MovieNightDbContext db, int? take, CancellationToken token) =>
+{
+    RecommendationRun? run = await db.RecommendationRuns
+        .Where(candidate => candidate.Error == null)
+        .OrderByDescending(candidate => candidate.CreatedAt)
+        .FirstOrDefaultAsync(token);
+
+    if (run is null)
+    {
+        return Results.Ok(new { run = (object?)null, picks = Array.Empty<object>() });
+    }
+
+    var picks = await db.Recommendations
+        .Where(pick => pick.RunId == run.Id)
+        .OrderBy(pick => pick.Rank)
+        .Take(Math.Clamp(take ?? 5, 1, 20))
+        .Select(pick => new
+        {
+            pick.Rank,
+            pick.Pitch,
+            pick.BasedOn,
+            pick.WhereToWatch,
+            pick.Confidence,
+            verdict = pick.Verdict.ToString(),
+            title = pick.MediaItem!.Title,
+            pick.MediaItem.Year,
+            kind = pick.MediaItem.Kind.ToString(),
+            pick.MediaItem.PosterUrl,
+            pick.MediaItem.Overview,
+            pick.MediaItem.InLibrary,
+            pick.MediaItem.TmdbId,
+        })
+        .ToListAsync(token);
+
+    return Results.Ok(new
+    {
+        run = new { run.Id, run.CreatedAt, run.ModelId },
+        picks,
+    });
+});
 
 app.MapRazorComponents<App>()
     .AddInteractiveServerRenderMode();
