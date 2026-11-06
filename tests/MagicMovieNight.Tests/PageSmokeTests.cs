@@ -1,5 +1,6 @@
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.AspNetCore.Hosting;
+using Microsoft.Extensions.DependencyInjection;
 using Xunit.Abstractions;
 
 namespace MagicMovieNight.Tests;
@@ -144,6 +145,46 @@ public class PageSmokeTests(ITestOutputHelper output)
 
         Assert.True(response.IsSuccessStatusCode, $"/ returned {(int)response.StatusCode}");
         Assert.Contains(expected, body);
+    }
+
+    /// <summary>
+    /// The taste profile and the "already watched" exclusions both consult "Didn't watch"
+    /// ratings and profile memberships. Those queries only fail when run, so run them.
+    /// </summary>
+    [Fact]
+    public async Task TasteAndExclusionQueriesTranslate()
+    {
+        if (string.IsNullOrWhiteSpace(ConnectionString))
+        {
+            output.WriteLine("TEST_DATABASE_URL not set — skipping page smoke tests.");
+            return;
+        }
+
+        using var factory = CreateFactory();
+        await using var scope = factory.Services.CreateAsyncScope();
+
+        var db = scope.ServiceProvider.GetRequiredService<MagicMovieNight.Data.MovieNightDbContext>();
+        var person = new MagicMovieNight.Core.Models.Person { Name = $"smoke-{Guid.NewGuid():N}" };
+        db.People.Add(person);
+        await db.SaveChangesAsync();
+
+        try
+        {
+            var taste = await scope.ServiceProvider
+                .GetRequiredService<MagicMovieNight.Integrations.Claude.TasteProfileService>()
+                .BuildAsync([person.Id]);
+
+            var excluded = await scope.ServiceProvider
+                .GetRequiredService<MagicMovieNight.Integrations.Ingest.FeedbackService>()
+                .GetExcludedMediaAsync([1, 2, 3], [person.Id]);
+
+            output.WriteLine($"taste for {taste.Subject}: {taste.TotalWatches} watches; {excluded.Count} excluded");
+        }
+        finally
+        {
+            db.People.Remove(person);
+            await db.SaveChangesAsync();
+        }
     }
 
     private WebApplicationFactory<Program> CreateFactory() =>

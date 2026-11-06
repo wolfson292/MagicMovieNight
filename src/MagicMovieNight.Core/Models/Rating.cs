@@ -54,6 +54,15 @@ public class Rating
 /// </summary>
 public enum RatingValue
 {
+    /// <summary>
+    /// Not an opinion: "that was someone else on our shared profile". A source only
+    /// knows which account played something, so a show Angela watched on the family
+    /// login is attributed to everyone on it. This marks the person as not having seen
+    /// it — their taste ignores those watches, and it can be suggested to them again.
+    /// See <see cref="Taste.WatchAttribution"/>.
+    /// </summary>
+    NotWatched = 0,
+
     Down = -1,
     Up = 1,
 

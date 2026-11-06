@@ -376,6 +376,19 @@ button.thumb.on.down {
     border-color: var(--bad);
 }
 
+/* Text, not an emoji, and kept a step apart: it corrects the history, it is not a verdict. */
+button.thumb.not-watched {
+    margin-left: 0.4rem;
+    font-size: 0.8rem;
+    white-space: nowrap;
+}
+
+button.thumb.not-watched.on {
+    background: var(--surface-hi);
+    border-color: var(--text-dim);
+    color: var(--text);
+}
+
 .rate-row {
     display: flex;
     align-items: center;

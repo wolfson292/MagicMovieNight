@@ -1,4 +1,6 @@
 using MagicMovieNight.Core.Models;
+using MagicMovieNight.Core.Taste;
+using MagicMovieNight.Integrations.Claude;
 using MagicMovieNight.Data;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
@@ -55,9 +57,13 @@ public class FeedbackService(
     /// <summary>
     /// Media the household should not be offered again: anything already watched, and
     /// anything they told us they had already seen.
+    ///
+    /// "Watched" means watched by these people. A title someone else played on a shared
+    /// profile, which every one of them has marked "didn't watch", is offered again.
     /// </summary>
     public async Task<HashSet<int>> GetExcludedMediaAsync(
         IReadOnlyList<int> profileIds,
+        IReadOnlyList<int> personIds,
         CancellationToken ct = default)
     {
         var watched = await db.WatchEvents
@@ -65,6 +71,29 @@ public class FeedbackService(
             .Select(e => e.MediaItemId)
             .Distinct()
             .ToListAsync(ct);
+
+        // Only titles somebody here disowned can change; leave the rest to the query above
+        // rather than pulling every watch event into memory.
+        var notWatched = await db.Ratings
+            .Where(r => r.Value == RatingValue.NotWatched && personIds.Contains(r.PersonId))
+            .ToListAsync(ct);
+
+        if (notWatched.Count > 0)
+        {
+            var disowned = notWatched.Select(r => r.MediaItemId).Distinct().ToList();
+
+            var events = await db.WatchEvents
+                .Where(e => profileIds.Contains(e.ProfileId) && disowned.Contains(e.MediaItemId))
+                .ToListAsync(ct);
+
+            var seen = WatchAttribution
+                .SeenBy(events, personIds,
+                    await TasteProfileService.MembersByProfileAsync(db, profileIds, ct), notWatched)
+                .Select(e => e.MediaItemId)
+                .ToHashSet();
+
+            watched.RemoveAll(id => disowned.Contains(id) && !seen.Contains(id));
+        }
 
         var alreadySeen = await db.Recommendations
             .Where(r => r.Verdict == Verdict.AlreadySeen)

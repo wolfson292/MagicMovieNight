@@ -44,7 +44,7 @@ public class TasteProfileService(MovieNightDbContext db)
 
         var subject = await DescribeSubjectAsync(personIds, resolvedPeople, profileIds, ct);
 
-        var events = await db.WatchEvents
+        var allEvents = await db.WatchEvents
             .Include(e => e.MediaItem)
             .Where(e => profileIds.Contains(e.ProfileId))
             .OrderByDescending(e => e.WatchedAt)
@@ -58,10 +58,32 @@ public class TasteProfileService(MovieNightDbContext db)
             .OrderByDescending(r => r.RatedAt)
             .ToListAsync(ct);
 
+        // Drop what was played on a shared profile by someone outside this group.
+        var events = WatchAttribution.SeenBy(
+            allEvents, resolvedPeople, await MembersByProfileAsync(db, profileIds, ct), ratings);
+
         var inProgress = FindInProgress(events);
 
         return TasteProfileBuilder.Build(
             subject, resolvedPeople, profileIds, events, ratings, inProgress);
+    }
+
+    /// <summary>Profile id → the people who use it, for attributing shared-profile watches.</summary>
+    internal static async Task<IReadOnlyDictionary<int, IReadOnlyCollection<int>>> MembersByProfileAsync(
+        MovieNightDbContext db,
+        IReadOnlyCollection<int> profileIds,
+        CancellationToken ct)
+    {
+        var memberships = await db.ProfileMemberships
+            .Where(m => profileIds.Contains(m.ProfileId))
+            .Select(m => new { m.ProfileId, m.PersonId })
+            .ToListAsync(ct);
+
+        return memberships
+            .GroupBy(m => m.ProfileId)
+            .ToDictionary(
+                g => g.Key,
+                g => (IReadOnlyCollection<int>)g.Select(m => m.PersonId).ToList());
     }
 
     private async Task<string> DescribeSubjectAsync(

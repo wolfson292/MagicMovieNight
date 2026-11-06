@@ -15,6 +15,11 @@
     watched it. A thumbs-down here actively steers recommendations away from that whole
     kind of thing.
 </p>
+<p class="muted">
+    Shared profiles list everything anyone watched on them. If something here was
+    someone else's, mark it <strong>Didn't watch</strong> — it drops out of your taste
+    and can be suggested to you again, while still counting for whoever did watch it.
+</p>
 
 <div class="panel">
     <div class="row">
@@ -80,7 +85,7 @@ else
                         </div>
                     }
                 </div>
-                <ThumbButtons Value="row.Rating"
+                <ThumbButtons Value="row.Rating" AllowNotWatched="true"
                               OnRate="v => RateTitle(row.Item.Id, v)" />
             </div>
 
@@ -94,7 +99,7 @@ else
                                 S@(ep.Season)@(ep.Episode is null ? "" : $"E{ep.Episode}")
                                 <span class="muted"> · watched @ep.WatchedAt.ToLocalTime().ToString("MMM d, yyyy")</span>
                             </div>
-                            <ThumbButtons Value="ep.Rating"
+                            <ThumbButtons Value="ep.Rating" AllowNotWatched="true"
                                           OnRate="v => RateEpisode(row.Item.Id, ep.Season, ep.Episode, v)" />
                         </div>
                     }

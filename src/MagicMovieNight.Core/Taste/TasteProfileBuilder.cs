@@ -41,6 +41,10 @@ public static class TasteProfileBuilder
     {
         var asOf = now ?? DateTimeOffset.UtcNow;
 
+        // "Didn't watch" is a correction to the history, not an opinion — it has already
+        // removed the events it disowns (WatchAttribution), and must not count as a rating.
+        ratings = ratings.Where(r => r.Value != RatingValue.NotWatched).ToList();
+
         // Events without a resolved catalog entry carry no genre or people data, so
         // they can only contribute to counts — drop them from the affinity maths.
         var resolved = events.Where(e => e.MediaItem is not null).ToList();

@@ -137,7 +137,7 @@ public class ClaudeRecommendationEngine(
 
         // Telling the model not to suggest something already seen is a request; removing
         // it from the pool is a guarantee.
-        var excluded = await feedback.GetExcludedMediaAsync(profile.ProfileIds, ct);
+        var excluded = await feedback.GetExcludedMediaAsync(profile.ProfileIds, profile.PersonIds, ct);
 
         var filtered = CandidateFilter.Apply(all, excluded, request, _options.MaxCandidates);
 
