@@ -48,7 +48,10 @@ public static class ServiceCollectionExtensions
             var options = sp.GetRequiredService<IOptions<TautulliOptions>>().Value;
             if (!string.IsNullOrWhiteSpace(options.BaseUrl))
             {
-                http.BaseAddress = new Uri(options.BaseUrl);
+                // Trailing slash for the same reason as TMDB: a URL base such as
+                // "/tautulli" is a path segment, and without the slash it is dropped.
+                var baseUrl = options.BaseUrl.EndsWith('/') ? options.BaseUrl : options.BaseUrl + "/";
+                http.BaseAddress = new Uri(baseUrl);
             }
 
             http.Timeout = TimeSpan.FromSeconds(60);

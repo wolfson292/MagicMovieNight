@@ -62,15 +62,37 @@ public class BaseAddressTests
             Resolve(normalised, "movie/123").ToString());
     }
 
-    [Fact]
-    public void TautulliAndTraktAreUnaffectedBecauseTheirBasesHaveNoPath()
+    /// <summary>
+    /// Tautulli broke the same way a month after TMDB. It moved behind a URL base
+    /// ("/tautulli") when it got a SWAG subfolder, and "/api/v2" resolved to the host
+    /// root. An earlier version of this file asserted Tautulli was safe "because its base
+    /// has no path" — true until the day it wasn't.
+    /// </summary>
+    [Theory]
+    [InlineData("http://tautulli:8181", "http://tautulli:8181/api/v2?cmd=get_history")]
+    [InlineData("http://tautulli:8181/", "http://tautulli:8181/api/v2?cmd=get_history")]
+    [InlineData("http://tautulli:8181/tautulli", "http://tautulli:8181/tautulli/api/v2?cmd=get_history")]
+    [InlineData("http://tautulli:8181/tautulli/", "http://tautulli:8181/tautulli/api/v2?cmd=get_history")]
+    public void TautulliKeepsItsUrlBase(string configured, string expected)
     {
-        // Both use a bare origin, so a leading slash on the relative path is harmless —
-        // which is why only TMDB broke.
-        Assert.Equal(
-            "http://tautulli:8181/api/v2?cmd=get_history",
-            Resolve("http://tautulli:8181", "/api/v2?cmd=get_history").ToString());
+        // Mirrors the normalisation applied when the client is registered, and the
+        // relative path TautulliClient requests.
+        var normalised = configured.EndsWith('/') ? configured : configured + "/";
 
+        Assert.Equal(expected, Resolve(normalised, "api/v2?cmd=get_history").ToString());
+    }
+
+    [Fact]
+    public void ALeadingSlashWouldDropTautullisUrlBase()
+    {
+        var broken = Resolve("http://tautulli:8181/tautulli/", "/api/v2?cmd=get_history");
+
+        Assert.Equal("http://tautulli:8181/api/v2?cmd=get_history", broken.ToString());
+    }
+
+    [Fact]
+    public void TraktIsUnaffectedBecauseItsBaseHasNoPath()
+    {
         Assert.Equal(
             "https://api.trakt.tv/users/me/history",
             Resolve(new TraktOptions().BaseUrl, "/users/me/history").ToString());

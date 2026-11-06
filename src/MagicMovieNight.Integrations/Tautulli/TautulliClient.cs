@@ -39,21 +39,29 @@ public class TautulliClient(
         var start = 0;
         while (!ct.IsCancellationRequested)
         {
-            var url = $"/api/v2?apikey={_options.ApiKey}&cmd=get_history"
+            // Relative, with no leading slash: Tautulli often runs behind a URL base
+            // ("http://tautulli:8181/tautulli/"), and "/api/v2" would resolve to the host
+            // root and drop it. That 404'd every sync for a month without a trace.
+            var url = $"api/v2?apikey={_options.ApiKey}&cmd=get_history"
                 + $"&order_column=date&order_dir=asc"
                 + $"&start={start}&length={PageSize}"
                 + $"&after={since.UtcDateTime:yyyy-MM-dd}";
 
-            TautulliEnvelope? envelope;
-            try
+            // Failures propagate: the ingestion service records them on the sync state,
+            // and keeps the high-water mark so the next run retries the same window.
+            // Swallowing them here is what made a dead sync look like a quiet month.
+            var envelope = await http.GetFromJsonAsync<TautulliEnvelope>(url, JsonOptions, ct);
+
+            // Tautulli reports API errors (a wrong key, say) as HTTP 200 with
+            // result "error" — indistinguishable from "no history" unless checked.
+            if (envelope?.Response?.Result is { } result
+                && !result.Equals("success", StringComparison.OrdinalIgnoreCase))
             {
-                envelope = await http.GetFromJsonAsync<TautulliEnvelope>(url, JsonOptions, ct);
+                throw new InvalidOperationException(
+                    $"Tautulli answered '{result}' at offset {start}: {envelope.Response.Message}");
             }
-            catch (Exception ex) when (ex is HttpRequestException or JsonException)
-            {
-                logger.LogError(ex, "Tautulli history request failed at offset {Start}.", start);
-                yield break;
-            }
+
+            logger.LogDebug("Tautulli history page at offset {Start} fetched.", start);
 
             var rows = envelope?.Response?.Data?.Data;
             if (rows is null || rows.Count == 0)
