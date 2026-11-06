@@ -186,6 +186,21 @@ containers do not report published ports. Ask the host's network namespace inste
 ss -ltn | awk 'NR>1{print $4}'
 ```
 
+To serve it under a subfolder of a reverse proxy, strip the prefix and name it in
+`X-Forwarded-Prefix`; the app sets its base path from that header, so the Blazor script and
+WebSocket resolve under the subfolder. An nginx (SWAG) example:
+
+```nginx
+location ^~ /magicmovienight/ {
+    proxy_set_header X-Forwarded-Prefix /magicmovienight;
+    rewrite ^/magicmovienight/(.*)$ /$1 break;
+    proxy_pass http://magicmovienight:8080;
+}
+```
+
+The app has no login of its own, so put authentication (Authelia, say) in front of anything
+that reaches it from outside the house.
+
 ### 3. Pair with Trakt
 
 Open the app → **Setup** → **Start pairing**. Trakt has no redirect URI for a container,

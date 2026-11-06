@@ -57,6 +57,24 @@ await using (var scope = app.Services.CreateAsyncScope())
     await db.Database.MigrateAsync();
 }
 
+// Served two ways: directly on the LAN at the root, and through SWAG under a subfolder
+// (nas.denlair.com/magicmovienight/). The proxy strips the prefix and names it in
+// X-Forwarded-Prefix; setting PathBase from it makes the <base href>, the Blazor
+// WebSocket, static assets and redirects all resolve under the subfolder. Without the
+// header nothing changes, so the LAN address keeps working. First, so every later
+// middleware — error pages included — sees the right base.
+app.Use((context, next) =>
+{
+    var prefix = context.Request.Headers["X-Forwarded-Prefix"].ToString().TrimEnd('/');
+
+    if (prefix.StartsWith('/') && !prefix.StartsWith("//") && Uri.IsWellFormedUriString(prefix, UriKind.Relative))
+    {
+        context.Request.PathBase = new PathString(prefix);
+    }
+
+    return next(context);
+});
+
 if (!app.Environment.IsDevelopment())
 {
     app.UseExceptionHandler("/Error", createScopeForErrors: true);

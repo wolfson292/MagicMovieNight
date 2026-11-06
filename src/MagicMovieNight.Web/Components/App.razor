@@ -4,7 +4,8 @@
 <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <base href="/" />
+    @* PathBase is set from the proxy's X-Forwarded-Prefix — see Program.cs. *@
+    <base href="@($"{HttpContext?.Request.PathBase}/")" />
     <ResourcePreloader />
     <link rel="stylesheet" href="@Assets["app.css"]" />
     <link rel="stylesheet" href="@Assets["MagicMovieNight.Web.styles.css"]" />
@@ -19,3 +20,8 @@
 </body>
 
 </html>
+
+@code {
+    [CascadingParameter]
+    private HttpContext? HttpContext { get; set; }
+}

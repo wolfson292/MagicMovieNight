@@ -110,6 +110,42 @@ public class PageSmokeTests(ITestOutputHelper output)
         Assert.Equal(System.Text.Json.JsonValueKind.Array, picks.ValueKind);
     }
 
+    /// <summary>
+    /// Behind SWAG the app lives under a subfolder, and every relative URL — the Blazor
+    /// script, the WebSocket, the stylesheets — resolves against the base href. Get it
+    /// wrong and the page renders but nothing on it works, which is the failure this app
+    /// has shipped before. Directly on the LAN it must stay at the root.
+    /// </summary>
+    [Theory]
+    [InlineData(null, "<base href=\"/\" />")]
+    [InlineData("/magicmovienight", "<base href=\"/magicmovienight/\" />")]
+    [InlineData("/magicmovienight/", "<base href=\"/magicmovienight/\" />")]
+    [InlineData("not-a-path", "<base href=\"/\" />")]
+    [InlineData("//evil.example", "<base href=\"/\" />")]
+    public async Task TheBaseHrefFollowsTheProxyPrefix(string? prefix, string expected)
+    {
+        if (string.IsNullOrWhiteSpace(ConnectionString))
+        {
+            output.WriteLine("TEST_DATABASE_URL not set — skipping page smoke tests.");
+            return;
+        }
+
+        using var factory = CreateFactory();
+        using var client = factory.CreateClient();
+
+        using var request = new HttpRequestMessage(HttpMethod.Get, "/");
+        if (prefix is not null)
+        {
+            request.Headers.Add("X-Forwarded-Prefix", prefix);
+        }
+
+        var response = await client.SendAsync(request);
+        var body = await response.Content.ReadAsStringAsync();
+
+        Assert.True(response.IsSuccessStatusCode, $"/ returned {(int)response.StatusCode}");
+        Assert.Contains(expected, body);
+    }
+
     private WebApplicationFactory<Program> CreateFactory() =>
         new WebApplicationFactory<Program>().WithWebHostBuilder(b =>
         {
